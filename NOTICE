@@ -1,0 +1,12 @@
+Raven System Control
+Copyright (C) 2026 Raven System Control contributors
+SPDX-License-Identifier: GPL-3.0-only
+
+The Raven icon and portions of the interface are adapted from Raven Backup:
+https://github.com/Rsotbiemrptson/RavenBackup
+Copyright (C) 2026 Raven Backup contributors
+Licensed under GNU GPL version 3 only.
+
+This repository does not redistribute the OEM firmware, extracted OEM APKs,
+private signing keys, device logs or personal application data used during
+local compatibility research.
