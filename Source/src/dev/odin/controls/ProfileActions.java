@@ -3,6 +3,7 @@ import android.content.*;import org.json.*;import java.util.*;
 
 /** Profile selection shared by the panel popup and its background application. */
 final class ProfileActions {
+ static String displayName(String name){return name.equals("Quiet · stock")?"Quiet":name.equals("Smart · stock")?"Smart":name.equals("Sport · stock")?"Sport":name;}
  static ArrayList<String> names(Context c,boolean fan){ArrayList<String> out=new ArrayList<>();if(fan)Collections.addAll(out,"Quiet · stock","Smart · stock","Sport · stock");ArrayList<String> custom=new ArrayList<>();for(String key:c.getSharedPreferences("profile",0).getAll().keySet())if(key.startsWith(fan?"fan:":"led:"))custom.add(key.substring(4));Collections.sort(custom,String.CASE_INSENSITIVE_ORDER);out.addAll(custom);return out;}
  static void apply(Context c,boolean fan,String name)throws Exception{
   android.content.SharedPreferences p=c.getSharedPreferences("profile",0);

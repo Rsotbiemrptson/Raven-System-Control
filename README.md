@@ -6,19 +6,19 @@
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.8-preview** · Package: `dev.odin.controls` · Version code: `31` · License: **GPL-3.0-only**
+**Current release: 0.2.10** · Package: `dev.odin.controls` · Version code: `34` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.8-preview/Raven-System-Control-0.2.8-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.8-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.10/Raven-System-Control-0.2.10.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.10)
 
 ## Features
 
-- Fan profile selector with protected OEM Quiet, Smart and Sport references; save custom profiles separately without overwriting the stock names.
+- Fan profile selector with protected OEM Quiet, Smart and Sport references, displayed without stock suffixes; save custom profiles separately without overwriting the stock names.
 - Editable temperature-curve graph and optional manual speed. Custom operation uses the verified off/50–70% requested PWM range, not measured RPM. The temperature source follows the OEM discovery order automatically.
 - On Odin 2 firmware 400, four independently controlled zones: left side, left stick, right stick and right side. Each zone has its own color and brightness.
 - Color-wheel selectors, hex entry, presets, an icon-orange default, Apply to all lights and direct Save-to-selected-light behavior.
 - Separate saved fan and LED profiles. Selecting an LED profile applies it immediately.
 - Raven Fan and Raven LED Quick Settings tiles. Tap for profiles; long-press opens the corresponding app tab. Selections leave the chooser open. Only its profile list scrolls; controls stay fixed. Back or an outside tap dismisses it.
-- Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls, selection indicators and power buttons follow the app accent; popup titles, profile names and light-switch labels use neutral text.
+- Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls and selection indicators follow the app accent; popup titles, profile names and light-switch labels use neutral text. Redundant on/off buttons are removed from the Fan chooser and Odin 2 LED chooser.
 - Orange Raven icon, adjustable accent, light/dark appearance and compact About popup.
 - First-launch guided setup with a fan-control warning and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 
@@ -27,12 +27,12 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 | Device | Accepted software | Status |
 | --- | --- | --- |
 | Odin 2 (`Odin2`) | Android 13 / API 33 | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
-| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | Implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
+| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | **Preview:** implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
 | Other devices | — | Hardware controls are blocked; compatibility is not assumed. |
 
 Hardware controls currently require the primary Android user (user 0).
 
-**Experimental preview:** manipulating fan settings can cause overheating and device damage. Use supervised tests and keep platform thermal protections enabled. Custom fan control requests OEM Smart cooling on temperature reaching 80°C, sensor loss, a missed heartbeat or user switch; its safeguards do not guarantee protection. A stock fan-mode change ends Raven's custom control. There is no automatic boot start.
+**Fan safety:** manipulating fan settings can cause overheating and device damage. Use supervised tests and keep platform thermal protections enabled. Custom fan control requests OEM Smart cooling on temperature reaching 80°C, sensor loss, a missed heartbeat or user switch; its safeguards do not guarantee protection. A stock fan-mode change ends Raven's custom control. There is no automatic boot start.
 
 ### Quick Settings popup permissions
 
@@ -69,7 +69,7 @@ See [BUILDING.md](BUILDING.md). Java sources, Android resources, shell helper, G
 
 The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, then verifies APK signing/alignment. Host shell fixtures cover fan leases, takeover/recovery, four-zone colors and brightness, independent group masks, invalid input and immutable setup backups. Odin 2 checks include saved-profile application, single-zone saves, separate analog/side toggles, native fallback dialogs, above-shade popups and dismissal. These do not certify Odin 3 or other firmware.
 
-The preview APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
+The APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
 
 ## License and attribution
 

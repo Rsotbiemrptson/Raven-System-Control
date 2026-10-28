@@ -10,7 +10,7 @@ runs the fan-policy tests, aligns the APK, signs it and verifies the result.
 - A JDK with javac, java, jar and keytool.
 - Android platform android-35/android.jar.
 - Android build tools providing aapt.exe, zipalign.exe, lib/d8.jar and
-  lib/apksigner.jar. The preview build uses the Workbench toolchain layout below.
+  lib/apksigner.jar. The build uses the Workbench toolchain layout below.
 - Optional WSL Ubuntu with Python 3 for mocked shell integration tests.
 
 ## Toolchain layout
@@ -41,7 +41,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed preview to `Outputs/0.2.8-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/0.2.10/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -52,7 +52,7 @@ value `android`; this is not a secret for public-release signing. Keep the priva
 key out of source control. The name of this legacy folder is retained for build
 compatibility; the application name is Raven System Control.
 
-The maintainer's existing preview key is not part of this repository. An APK built
+The maintainer's existing signing key is not part of this repository. An APK built
 with your own key cannot update the published APK in place. Do not uninstall an
 installed copy until you have stopped its fan session and restored its lighting.
 
