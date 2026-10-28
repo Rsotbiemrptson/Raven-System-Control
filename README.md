@@ -2,75 +2,79 @@
 
 <img src="docs/images/icon.png" alt="Raven System Control" width="112">
 
-Standalone Android customization app for AYN Odin 2 and Odin 3, featuring configurable fan curves, stick lighting controls, and saved profiles while preserving the stock OS.
+**Your system. Your way.**
 
-**Current release: 0.1.6-preview** · Package: `dev.odin.controls` · Version code: `7` · License: **GPL-3.0-only**
+Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.1.6-preview/Raven-System-Control-0.1.6-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.1.6-preview)
+**Current release: 0.2.7-preview** · Package: `dev.odin.controls` · Version code: `30` · License: **GPL-3.0-only**
+
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.7-preview/Raven-System-Control-0.2.7-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.7-preview)
 
 ## Features
 
-- Temperature-based fan curves with separate on/off thresholds, two speed points, and a minimum 20-second run time.
-- Manual fan control within the stock 50–70% PWM range. PWM is a requested duty, not a percentage of measured RPM.
-- Temperature-sensor selection and a curve simulator that makes no device writes.
-- Stick-ring colors and brightness through the OEM settings interface, with original-setting snapshots for restoration.
-- Local profiles that load into a draft before you apply them.
-- Raven-style side navigation, a three-dot menu, blue accents, and visible Start/Stop or Apply/Restore actions.
-- A user-started fan notification with Stop & restore. A separate helper lease requests stock automatic cooling if app heartbeats stop, the selected sensor fails, temperature reaches 80°C, or the primary user changes.
-
-The app uses AYN's factory `PServerBinder` service. It does not install root, modify firmware or fingerprints, remove OEM apps, disable SELinux, or add a boot hook. Controls require the factory service and expected hardware interfaces to be accessible.
+- Fan profile selector with protected OEM Quiet, Smart and Sport references; save custom profiles separately without overwriting the stock names.
+- Editable temperature-curve graph and optional manual speed. Custom operation uses the verified off/50–70% requested PWM range, not measured RPM. The temperature source follows the OEM discovery order automatically.
+- On Odin 2 firmware 400, four independently controlled zones: left side, left stick, right stick and right side. Each zone has its own color and brightness.
+- Color-wheel selectors, hex entry, presets, an icon-orange default, Apply to all lights and direct Save-to-selected-light behavior.
+- Separate saved fan and LED profiles. Selecting an LED profile applies it immediately.
+- Raven Fan and Raven LED Quick Settings tiles. Tap for profiles; long-press opens the corresponding app tab. Selections leave the chooser open. Only its profile list scrolls; controls stay fixed. Back or an outside tap dismisses it.
+- Separate analog/side-light switches in the Odin 2 LED tile chooser. Popup switches, selection indicators and power buttons follow the app accent; titles and profile names use neutral text.
+- Orange Raven icon, adjustable accent, light/dark appearance and compact About popup.
+- First-launch guided setup with a fan-control warning and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 
 ## Device support
 
 | Device | Accepted software | Status |
 | --- | --- | --- |
-| Odin 2 (`Odin2`) | Android 13 / API 33, build `Odin2_Custom_V1.0.0.400` | Limited on-device testing passed: manual fan duty, notification Stop/restoration, force-stop lease fallback, shared ring lighting and restoration. |
-| Odin 3 (`Odin3`) | Android 15 / API 35 with the expected stock interfaces | Implemented from OEM interface evidence; hardware testing is still pending. |
+| Odin 2 (`Odin2`) | Android 13 / API 33, build `Odin2_Custom_V1.0.0.400` | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
+| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | Implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
 | Other devices or Odin 2 builds | — | Hardware controls are blocked; compatibility is not assumed. |
 
-**This is an experimental preview.** Automatic curves under load, sensor accuracy, sleep/wake, reboot/uninstall recovery, and other firmware versions are not validated. Keep stock thermal protections enabled. The helper's fallback is a request to the OEM service, not a replacement for platform thermal protection.
+Hardware controls currently require the primary Android user (user 0).
+
+**Experimental preview:** manipulating fan settings can cause overheating and device damage. Use supervised tests and keep platform thermal protections enabled. Custom fan control requests OEM Smart cooling on temperature reaching 80°C, sensor loss, a missed heartbeat or user switch; its safeguards do not guarantee protection. A stock fan-mode change ends Raven's custom control. There is no automatic boot start.
+
+### Quick Settings popup permissions
+
+The app uses AYN's existing `PServerBinder` privileged service for hardware commands. On Odin 2/API 33 and Odin 3/API 35, it also attempts to launch a temporary **UID 0 window renderer** through that service so the chooser can appear above the open shade. The main app keeps its normal Android UID and validates profile requests. The renderer closes on dismissal, screen-off/lock, parent-app exit or inactivity.
+
+This does not install root software, unlock the bootloader, modify SystemUI or firmware, disable SELinux, or add a boot hook. Access still depends on the OEM service and runtime policy. If startup is denied, the helper exits or startup times out after eight seconds, Raven falls back to Android's normal tile dialog, which closes the shade.
+
+Odin 2 above-shade rendering and forced helper-exit/timeout fallbacks were tested. Both Odin 3 firmware versions contain a root-run pservice and system dialog window type 2017; this is compatibility evidence, **not a successful Odin 3 runtime test**.
 
 ### Lighting limits
 
-- **Odin 2 firmware 400:** one stock RGB color shared by both stick rings. Shared color and brightness also affect any enabled handle lights; the app preserves their enable settings.
-- **Odin 3:** separate left/right ring RGB values are implemented through stock settings, but actual device behavior is untested.
-- Four emitters per stick, independent per-emitter colors, and RGB charging-LED control remain investigation items. This release does not expose those controls or send undocumented channel commands.
+- Odin 2 four-zone writes use the verified stock controller groups. Individual segments inside a stick ring are not exposed.
+- Odin 3 retains its existing separate left/right ring setting format; actual behavior remains untested. Odin 2-only side-light switches are not shown there.
+- RGB charging-indicator control is not exposed in this release.
+- OEM lighting changes can override Raven colors. The app observes stock settings to reflect external changes; driver-only changes may not be readable.
 
 ## Getting started
 
-1. Download the APK from the release linked above and install it on the intended supported device.
-2. Open **Device** and run **Hardware checks**. Opening the app alone does not establish hardware compatibility.
-3. Choose a temperature sensor only after checking its type and readings. Validate the sensor independently before relying on a temperature curve.
-4. Begin with a short supervised manual-fan test, then use **Stop & restore** and confirm the original settings return. Enable notifications so the session and Stop action remain visible.
-5. Test lighting **Apply** and **Restore ring settings** separately. Loading a saved profile only changes the draft.
+1. Install the APK on the supported device and complete the first-launch guided setup. Fan control can be skipped.
+2. Allow fan notifications before applying a custom curve. Begin with a short supervised test; **Use Smart** hands control to OEM Smart cooling.
+3. In **LEDs**, select a zone, choose a color/brightness and press **Save**. Save applies that light immediately. **Apply to all lights** applies it to all supported zones.
+4. Save fan and LED profiles in their respective tabs. Add **Raven Fan** and **Raven LED** from Android's Quick Settings tile editor.
+5. Use **Settings → Advanced → Rerun Guided Setup** to repeat checks. Recovery actions are in the same section.
 
-There is no restart-after-reboot feature. A fan session may hand back to stock cooling after a long sleep if its heartbeat expires.
+## Recovery and uninstalling
 
-## Stop, restore and removal
+**Factory Restore Fan** and **Factory Restore LEDs** restore the original settings retained during setup, not a universal firmware default. Repeating setup does not replace a valid original backup with an active Raven profile. The root-owned recovery backup under `/data/local/odin-controls/recovery` is retained across normal uninstall/reinstall; damaged or incompatible backups are rejected.
 
-Before uninstalling, open **Device → Stop fan & restore ring settings** and confirm the result. Normal fan stop restores the settings saved at session start. The force-stop fallback restores the saved speed setting and requests stock automatic mode.
+Before uninstalling, choose **Use Smart** or the appropriate recovery action and confirm the result. Uninstall cannot run app cleanup. LED restoration is not automatic after uninstall or force-stop. An existing compatible recovery backup can be used after reinstalling; this is recovery support, not a guarantee that an uninstall callback runs.
 
-Session journals and lighting snapshots are stored root-owned under `/data/local/odin-controls`, outside APK storage. Failed restoration retains the journal for a later retry. A small helper, last-result file and log may remain after a session ends. No automatic app cleanup can run after uninstall, and lighting restoration is not automatic after force-stop or uninstall.
+## Build and verification
 
-## Build and test
+See [BUILDING.md](BUILDING.md). Java sources, Android resources, shell helper, GPL text and host tests are included in [Source](Source). OEM APKs, firmware images, private signing keys, raw device logs and personal data are not distributed.
 
-See [BUILDING.md](BUILDING.md) for the Windows build, toolchain layout and host-only tests. All app Java, resources, helper code and tests are in [Source](Source).
+The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, then verifies APK signing/alignment. Host shell fixtures cover fan leases, takeover/recovery, four-zone colors and brightness, independent group masks, invalid input and immutable setup backups. Odin 2 checks include saved-profile application, single-zone saves, separate analog/side toggles, native fallback dialogs, above-shade popups and dismissal. These do not certify Odin 3 or other firmware.
 
-The published preview APK uses the maintainer's existing preview signing identity. Private signing material is not included. Local builds use a separate development key and cannot update the published APK unless they use the same signing identity.
+The preview APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
 
-## Verification performed
-
-- Compilation, fan-policy tests, mocked shell integration tests, APK signature, alignment and SHA-256 checksum checks.
-- Odin 2 firmware 400: 55% requested PWM produced driver duty `27500` with a `50000` period and an increased driver speed reading; notification Stop restored stock automatic mode and prior settings.
-- After force-stop, the final helper returned to stock automatic mode, restored the prior speed setting and duty `8000` by the 20-second check.
-- Both stick rings visibly showed blue at 50% brightness, confirmed by the owner. All 12 monitored settings matched their original values after restoration.
-- Landscape pages, profiles, persistence, menu, keyboard behavior and simulator were checked on Odin 2. Portrait fallback is implemented but remains unverified because the device held landscape during the rotation check.
-- The 0.1.6 icon-only update was installed and inspected; hardware settings were unchanged. Its hardware helper matches the directly tested 0.1.4 helper.
-
-<img src="docs/images/app.png" alt="Raven System Control on Odin 2, showing side tabs and fan controls" width="960">
+<img src="docs/images/app.png" alt="Raven System Control fan profile screen on Odin 2" width="960">
 
 ## License and attribution
 
-Raven System Control source and project artwork are licensed under **GNU GPL version 3 only**; see [LICENSE](LICENSE). Copyright (C) 2026 Raven System Control contributors.
+Created by **Rsotbiemrptson**. Source and project artwork are licensed under **GNU GPL version 3 only**; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-The icon and portions of the UI are adapted from [Raven Backup](https://github.com/Rsotbiemrptson/RavenBackup), also GPL-3.0-only. Raven Backup and Raven App Control remain separate applications. See [NOTICE](NOTICE).
+The icon, portions of the interface, color wheel and contrast helpers are adapted from [Raven Backup](https://github.com/Rsotbiemrptson/RavenBackup), also GPL-3.0-only. Raven Backup, Raven App Control and Raven Gamepad are separate applications.

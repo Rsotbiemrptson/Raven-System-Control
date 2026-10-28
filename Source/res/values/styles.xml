@@ -1,6 +1,6 @@
 <resources>
  <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
-  <item name="android:fontFamily">sans</item><item name="android:colorAccent">#15A5FC</item>
+  <item name="android:fontFamily">sans</item><item name="android:colorAccent">#FF8000</item>
   <item name="android:colorBackground">#131519</item><item name="android:windowBackground">#131519</item>
   <item name="android:textColorPrimary">#F1F2F6</item><item name="android:textColorSecondary">#A9B0BC</item>
   <item name="android:colorControlNormal">#A9B0BC</item><item name="android:alertDialogTheme">@style/ControlDialog</item>
@@ -10,12 +10,27 @@
   <item name="android:windowActionModeOverlay">true</item>
  </style>
  <style name="ControlDialog" parent="android:style/Theme.Material.Dialog.Alert">
-  <item name="android:colorAccent">#15A5FC</item><item name="android:colorBackground">#272B32</item>
+  <item name="android:colorAccent">#FF8000</item><item name="android:colorBackground">#272B32</item>
   <item name="android:windowBackground">@drawable/dialog_surface</item><item name="android:textColorPrimary">#F1F2F6</item>
   <item name="android:textColorSecondary">#A9B0BC</item><item name="android:colorControlNormal">#A9B0BC</item>
   <item name="android:windowMinWidthMajor">55%</item><item name="android:windowMinWidthMinor">90%</item>
  </style>
  <style name="ControlPopup" parent="android:style/Widget.Material.PopupMenu">
   <item name="android:popupBackground">@drawable/dialog_surface</item>
+ </style>
+ <style name="AppThemeLight" parent="android:style/Theme.Material.Light.NoActionBar">
+  <item name="android:fontFamily">sans</item><item name="android:colorAccent">#FF8000</item>
+  <item name="android:colorBackground">#F5F5F8</item><item name="android:windowBackground">#F5F5F8</item>
+  <item name="android:textColorPrimary">#20232B</item><item name="android:textColorSecondary">#586171</item>
+  <item name="android:colorControlNormal">#586171</item><item name="android:alertDialogTheme">@style/ControlDialogLight</item>
+  <item name="android:windowLightStatusBar">true</item><item name="android:windowLightNavigationBar">true</item>
+  <item name="android:windowActionModeOverlay">true</item>
+ </style>
+ <style name="ControlDialogLight" parent="android:style/Theme.Material.Light.Dialog.Alert">
+  <item name="android:windowLightStatusBar">true</item><item name="android:windowLightNavigationBar">true</item>
+  <item name="android:colorAccent">#FF8000</item><item name="android:colorBackground">#FFFFFF</item>
+  <item name="android:windowBackground">#FFFFFF</item><item name="android:textColorPrimary">#20232B</item>
+  <item name="android:textColorSecondary">#586171</item><item name="android:colorControlNormal">#586171</item>
+  <item name="android:windowMinWidthMajor">55%</item><item name="android:windowMinWidthMinor">90%</item>
  </style>
 </resources>

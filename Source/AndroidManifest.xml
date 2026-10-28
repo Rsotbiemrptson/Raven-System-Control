@@ -1,10 +1,14 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.odin.controls" android:versionCode="7" android:versionName="0.1.6-preview">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.odin.controls" android:versionCode="30" android:versionName="0.2.7-preview">
  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
  <application android:label="Raven System Control" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="false" android:supportsRtl="true">
-  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|uiMode"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|uiMode"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter><intent-filter><action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES"/><category android:name="android.intent.category.DEFAULT"/></intent-filter></activity>
   <service android:name=".FanService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-started temperature-based cooling control with a visible stop action and a privileged helper lease"/></service>
+  <service android:name=".FanTile" android:exported="true" android:label="Raven Fan" android:icon="@drawable/ic_tile_fan" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"><intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter></service>
+  <service android:name=".LedTile" android:exported="true" android:label="Raven LED" android:icon="@drawable/ic_tile_led" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"><intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter></service>
+  <service android:name=".LedProfileService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Apply a user-selected LED profile from a quick tile"/></service>
+  <service android:name=".TilePopupService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-opened profile chooser above quick settings using the AYN privileged service"/></service>
  </application>
 </manifest>

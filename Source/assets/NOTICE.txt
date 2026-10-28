@@ -1,0 +1,6 @@
+Raven System Control
+Creator: Rsotbiemrptson
+SPDX-License-Identifier: GPL-3.0-only
+Icon, interface elements, color wheel and contrast helpers adapted from Raven Backup.
+Copyright (C) 2026 Raven Backup contributors. Licensed under GPL-3.0-only.
+https://github.com/Rsotbiemrptson/RavenBackup

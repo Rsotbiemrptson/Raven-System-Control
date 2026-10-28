@@ -1,0 +1,15 @@
+package dev.odin.controls;
+import android.content.Context;import android.graphics.*;import android.view.*;
+/** Hue/saturation wheel; hex input can also set its HSV value. */
+final class ColorWheelView extends View {
+ interface Changed{void color(int value);} Changed changed;
+ final float[] hsv=new float[3];final Paint paint=new Paint(3);final int marker;float cx,cy,radius;
+ ColorWheelView(Context c,int color,int text){super(c);marker=text;Color.colorToHSV(color,hsv);setContentDescription("Hue and saturation color wheel; use hex input or presets for precise selection");setFocusable(true);}
+ int color(){return Color.HSVToColor(hsv);}float value(){return hsv[2];}
+ void setColor(int color){Color.colorToHSV(color,hsv);update();}void setValue(float v){hsv[2]=Math.max(0,Math.min(1,v));update();}void update(){invalidate();if(changed!=null)changed.color(color());}
+ @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){cx=w/2f;cy=h/2f;radius=Math.max(1,Math.min(w,h)/2f-10*getResources().getDisplayMetrics().density);}
+ @Override protected void onDraw(Canvas c){super.onDraw(c);paint.setStyle(Paint.Style.FILL);paint.setShader(new SweepGradient(cx,cy,new int[]{Color.RED,Color.YELLOW,Color.GREEN,Color.CYAN,Color.BLUE,Color.MAGENTA,Color.RED},null));c.drawCircle(cx,cy,radius,paint);paint.setShader(new RadialGradient(cx,cy,radius,Color.WHITE,0x00ffffff,Shader.TileMode.CLAMP));c.drawCircle(cx,cy,radius,paint);paint.setShader(null);paint.setColor(Color.argb(Math.round((1-hsv[2])*255),0,0,0));c.drawCircle(cx,cy,radius,paint);double a=Math.toRadians(hsv[0]);float x=cx+(float)Math.cos(a)*hsv[1]*radius,y=cy+(float)Math.sin(a)*hsv[1]*radius;paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(3*getResources().getDisplayMetrics().density);paint.setColor(Color.BLACK);c.drawCircle(x,y,7*getResources().getDisplayMetrics().density,paint);paint.setStrokeWidth(1.5f*getResources().getDisplayMetrics().density);paint.setColor(Color.WHITE);c.drawCircle(x,y,7*getResources().getDisplayMetrics().density,paint);}
+ @Override public boolean onTouchEvent(android.view.MotionEvent event){int action=event.getActionMasked();if(action==MotionEvent.ACTION_DOWN||action==MotionEvent.ACTION_MOVE||action==MotionEvent.ACTION_UP){float dx=event.getX()-cx,dy=event.getY()-cy;if(action==MotionEvent.ACTION_DOWN&&Math.hypot(dx,dy)>radius+10*getResources().getDisplayMetrics().density)return false;getParent().requestDisallowInterceptTouchEvent(true);hsv[0]=((float)Math.toDegrees(Math.atan2(dy,dx))+360)%360;hsv[1]=Math.min(1,(float)Math.hypot(dx,dy)/radius);update();if(action==MotionEvent.ACTION_UP){performClick();getParent().requestDisallowInterceptTouchEvent(false);}return true;}if(action==MotionEvent.ACTION_CANCEL)getParent().requestDisallowInterceptTouchEvent(false);return true;}
+ @Override public boolean performClick(){super.performClick();return true;}
+ @Override public boolean onKeyDown(int key,android.view.KeyEvent e){if(key==21||key==22){hsv[0]=(hsv[0]+(key==21?355:5))%360;update();return true;}if(key==19||key==20){hsv[1]=Math.max(0,Math.min(1,hsv[1]+(key==19?.05f:-.05f)));update();return true;}return super.onKeyDown(key,e);}
+}

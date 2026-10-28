@@ -41,7 +41,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed preview to `Outputs/0.1.6-preview/`, along with SHA256SUMS.txt. Build output
+signed preview to `Outputs/0.2.7-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -58,7 +58,9 @@ installed copy until you have stopped its fan session and restored its lighting.
 
 ## Host-only tests
 
-The build script runs `Source/tests/FanCurveTest.java`.
+The build script runs `FanCurveTest.java`, `CurvePointsTest.java` and
+`AppearanceColorsTest.java` (including 4,096 accent-color contrast checks)
+from `Source/tests/`.
 
 For the shell helper, run these inside Linux/WSL from the repository directory:
 
@@ -70,5 +72,6 @@ python3 Source/tests/hardware_test.py
 The Python harness replaces device paths and commands with temporary fixtures.
 It does not read or modify an Android device. Tests cover model/API/build guards,
 PWM-period validation, policy behavior, heartbeat fallback, failed restoration
-and retry, shared/split lighting formats, ARGB conversion and original/null-setting
-restoration. Passing these tests does not validate real hardware.
+and retry, four-zone colors/brightness and independent analog/side masks,
+shared/split lighting formats, ARGB conversion, immutable setup backups and
+original/null-setting restoration. Passing these tests does not validate real hardware.
