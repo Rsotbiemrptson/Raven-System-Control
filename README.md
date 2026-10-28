@@ -6,9 +6,9 @@
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.7-preview** · Package: `dev.odin.controls` · Version code: `30` · License: **GPL-3.0-only**
+**Current release: 0.2.8-preview** · Package: `dev.odin.controls` · Version code: `31` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.7-preview/Raven-System-Control-0.2.7-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.7-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.8-preview/Raven-System-Control-0.2.8-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.8-preview)
 
 ## Features
 
@@ -18,7 +18,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 - Color-wheel selectors, hex entry, presets, an icon-orange default, Apply to all lights and direct Save-to-selected-light behavior.
 - Separate saved fan and LED profiles. Selecting an LED profile applies it immediately.
 - Raven Fan and Raven LED Quick Settings tiles. Tap for profiles; long-press opens the corresponding app tab. Selections leave the chooser open. Only its profile list scrolls; controls stay fixed. Back or an outside tap dismisses it.
-- Separate analog/side-light switches in the Odin 2 LED tile chooser. Popup switches, selection indicators and power buttons follow the app accent; titles and profile names use neutral text.
+- Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls, selection indicators and power buttons follow the app accent; popup titles, profile names and light-switch labels use neutral text.
 - Orange Raven icon, adjustable accent, light/dark appearance and compact About popup.
 - First-launch guided setup with a fan-control warning and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 

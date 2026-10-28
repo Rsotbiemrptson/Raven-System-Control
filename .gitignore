@@ -16,3 +16,6 @@
 *.class
 __pycache__/
 *.pyc
+
+# Owner removed the fan screenshot; do not republish it.
+/docs/images/app.png

@@ -41,7 +41,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed preview to `Outputs/0.2.7-preview/`, along with SHA256SUMS.txt. Build output
+signed preview to `Outputs/0.2.8-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -75,3 +75,12 @@ PWM-period validation, policy behavior, heartbeat fallback, failed restoration
 and retry, four-zone colors/brightness and independent analog/side masks,
 shared/split lighting formats, ARGB conversion, immutable setup backups and
 original/null-setting restoration. Passing these tests does not validate real hardware.
+
+## Publishing updates
+
+Fetch and fast-forward this checkout from GitHub before editing a release.
+Preserve remote README edits and update version details in place. The owner
+has removed the fan-screen screenshot: do not add screenshots or restore its
+README embed unless explicitly requested. `docs/images/app.png` is ignored.
+Publish the signed APK and checksum with a source tag; exclude private keys,
+firmware, OEM extraction results and device evidence.
