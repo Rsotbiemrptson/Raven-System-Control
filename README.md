@@ -71,8 +71,6 @@ The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, 
 
 The preview APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
 
-<img src="docs/images/app.png" alt="Raven System Control fan profile screen on Odin 2" width="960">
-
 ## License and attribution
 
 Created by **Rsotbiemrptson**. Source and project artwork are licensed under **GNU GPL version 3 only**; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
