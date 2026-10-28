@@ -26,9 +26,9 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 
 | Device | Accepted software | Status |
 | --- | --- | --- |
-| Odin 2 (`Odin2`) | Android 13 / API 33, build `Odin2_Custom_V1.0.0.400` | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
+| Odin 2 (`Odin2`) | Android 13 / API 33, build | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
 | Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | Implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
-| Other devices or Odin 2 builds | — | Hardware controls are blocked; compatibility is not assumed. |
+| Other devices | — | Hardware controls are blocked; compatibility is not assumed. |
 
 Hardware controls currently require the primary Android user (user 0).
 
