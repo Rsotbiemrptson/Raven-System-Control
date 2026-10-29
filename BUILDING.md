@@ -41,7 +41,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/0.2.14-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/0.2.15-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
