@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.16-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.15-preview** · Package: `dev.odin.controls` · Version code: `40` · License: **GPL-3.0-only**
+**Current release: 0.2.16-preview** · Package: `dev.odin.controls` · Version code: `41` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.15-preview/Raven-System-Control-0.2.15-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.15-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.16-preview/Raven-System-Control-0.2.16-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.16-preview)
 
 **Preview release:** Odin 2 has been tested on hardware. Odin 3 hardware testing is coming soon; its support remains unverified until those checks are complete.
 
@@ -22,7 +22,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 - Raven Fan and Raven LED Quick Settings tiles. Tap for profiles; long-press opens the corresponding app tab. Selections leave the chooser open. Only its profile list scrolls; controls stay fixed. Back or an outside tap dismisses it.
 - Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls and selection indicators follow the app accent; popup titles, profile names and light-switch labels use neutral text. Redundant on/off buttons are removed from the Fan chooser and Odin 2 LED chooser.
 - Responsive analog/side switching: one switch no longer locks the other. Shared-color profiles skip the extra observer wait; independent colors retain it to preserve per-LED brightness and color. Group on/off settings persist through standby.
-- Orange Raven icon with an opaque charcoal background matching the GitHub icon, adjustable accent, light/dark appearance and compact About popup.
+- Orange Raven icon with flat #1F2228 charcoal and rounded corners matching Raven Backup, shared with GitHub, adjustable accent, light/dark appearance and compact About popup.
 - First-launch guided setup with a fan-control warning and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 
 ## Device support
