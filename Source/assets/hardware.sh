@@ -352,7 +352,8 @@ light)
   echo 'OK Left and right ring colors applied through stock settings'
  fi
  ;;
-light-zones)
+light-zones|light-groups)
+ [ "$OP" != light-groups ] || [ "$#" -eq 11 ] || fail 'Invalid fast-group request'
  [ "$lighting" = shared ] || fail 'Four-zone lighting requires Odin 2 firmware 400'
  [ "$#" -eq 7 ] || [ "$#" -eq 10 ] || [ "$#" -eq 11 ] || fail 'Invalid four-zone lighting request'
  left=$2;right=$3;handle_left=$4;handle_right=$5;brightness=$6
@@ -366,9 +367,52 @@ light-zones)
  done
  for level in "$brightness" "$right_b" "$handle_left_b" "$handle_right_b"; do number "$level" && [ "$level" -le 100 ] || fail 'Invalid brightness';done
  case "$side" in keep|on|off) ;; *) fail 'Invalid side-light request';; esac
+ if [ "$OP" = light-groups ]; then case "$side" in on|off) ;; *) fail 'Fast groups require an explicit side state';; esac;fi
  [ -w /sys/class/sn3112l/led/brightness ] && [ -w /sys/class/sn3112r/led/brightness ] || fail 'Expected writable lighting interfaces not found'
  save_lighting
  touch "$D/lights/direct" || fail 'Cannot retain direct-lighting recovery marker'
+ if [ "$OP" = light-groups ]; then
+  case "$side" in on|off) ;; *) fail 'Fast groups require an explicit side state';; esac
+  [ -w /sys/class/sn3112l/led/enable ] && [ -w /sys/class/sn3112r/led/enable ] || fail 'Expected writable lighting enables not found'
+  # Persist the mask the OEM reapplies on wake. A hardware-only mask is lost on
+  # standby, leaving Raven's cached switches inconsistent with the real lights.
+  ring_enable=0;[ "$rings" = on ] && ring_enable=1
+  side_enable=0;[ "$side" = on ] && side_enable=1
+  changed=0
+  for key in left_joystick_light_enabled right_joystick_light_enabled left_handle_light_enabled right_handle_light_enabled; do
+   case "$key" in *joystick*) wanted=$ring_enable;; *) wanted=$side_enable;; esac
+   if [ "$(get "$key")" != "$wanted" ]; then
+    put "$key" "$wanted" || fail 'Group state persistence failed; recovery retained'
+    changed=1
+   fi
+  done
+  # Shared-color profiles already match the OEM observer's output. Only truly
+  # independent colors need its repaint to settle before our final zone write.
+  compatible=1;stock_color=$(get led_light_picker_color);stock_level=$(get led_light_brightness_percent)
+  for zone in "$left:$brightness:$rings" "$right:$right_b:$rings" "$handle_left:$handle_left_b:$side" "$handle_right:$handle_right_b:$side"; do
+   zone_on=${zone##*:};[ "$zone_on" = on ] || continue
+   zone_color=${zone%%:*};rest=${zone#*:};zone_level=${rest%%:*}
+   [ "$stock_color" = "$((0xFF$zone_color-4294967296))" ] || compatible=0
+   awk -v stock="$stock_level" -v percent="$zone_level" 'BEGIN {exit !(stock ~ /^[0-9]+([.][0-9]+)?$/ && stock*100==percent)}' || compatible=0
+  done
+  if [ "$changed" = 1 ] && [ "$compatible" = 0 ]; then sleep 1;fi
+  echo groups > "$D/lights/direct" || fail 'Cannot retain fast-group state'
+  active=0
+  if [ "$rings" = on ] || [ "$side" = on ]; then
+   active=1
+   echo 1 > /sys/class/sn3112l/led/enable && echo 1 > /sys/class/sn3112r/led/enable || fail 'Fast-group enable failed; recovery retained'
+  fi
+  [ "$rings" = on ] || { left=000000;right=000000; }
+  [ "$side" = on ] || { handle_left=000000;handle_right=000000; }
+  write_zone /sys/class/sn3112l/led/brightness 1 "$handle_left" "$handle_left_b" && write_zone /sys/class/sn3112l/led/brightness 2 "$left" "$brightness" && write_zone /sys/class/sn3112r/led/brightness 1 "$handle_right" "$handle_right_b" && write_zone /sys/class/sn3112r/led/brightness 2 "$right" "$right_b" || fail 'Fast-group color write failed; recovery retained'
+  if [ "$active" = 0 ]; then
+   echo 0 > /sys/class/sn3112l/led/enable && echo 0 > /sys/class/sn3112r/led/enable || fail 'Fast-group disable failed; recovery retained'
+  fi
+  echo "$active" > "$D/lights/active-l";echo "$active" > "$D/lights/active-r"
+  echo "OK Direct groups analog=$rings side=$side"
+  exit 0
+ fi
+ : > "$D/lights/direct" || fail 'Cannot retain direct-lighting recovery marker'
  value=$(awk "BEGIN {printf \"%.2f\", $brightness/100}")
  color=$((0xFF$left-4294967296))
  ring_enable=0;[ "$rings" = on ] && ring_enable=1
@@ -388,7 +432,7 @@ light-zones)
  ;;
 light-one)
  [ "$lighting" = shared ] || fail 'Individual Save requires Odin 2 firmware 400'
- [ "$#" -eq 4 ] || fail 'Invalid single-light request'
+ [ "$#" -eq 4 ] || { [ "$#" -eq 5 ] && [ "$5" = system ]; } || fail 'Invalid single-light request'
  target=$2;color=$3;brightness=$4;side=keep
  case "$target" in 0) controller=l;group=2;; 1) controller=r;group=2;; 2) controller=l;group=1;; 3) controller=r;group=1;; *) fail 'Invalid light target';; esac
  [ "${#color}" = 6 ] || fail 'Use six-digit RGB colors'
@@ -398,8 +442,17 @@ light-one)
  [ -w "$node/brightness" ] && [ -w "$node/enable" ] || fail 'Expected writable lighting interfaces not found'
  save_lighting
  touch "$D/lights/direct" || fail 'Cannot retain direct-lighting recovery marker'
+ if [ "$#" -eq 5 ]; then
+  # An OEM settings change supersedes the direct journal. Its native handler
+  # enables both controllers from the left ring/side settings.
+  system_active=0
+  if [ "$(get left_joystick_light_enabled)" = 1 ] || [ "$(get left_handle_light_enabled)" = 1 ]; then system_active=1;fi
+  echo "$system_active" > "$D/lights/active-l";echo "$system_active" > "$D/lights/active-r"
+  echo groups > "$D/lights/direct" || fail 'Cannot retain controller state'
+ fi
  active=0
  if [ "$(get left_joystick_light_enabled)" = 1 ] || [ "$(get left_handle_light_enabled)" = 1 ] || [ "$(cat "$D/lights/active-$controller" 2>/dev/null)" = 1 ]; then active=1;fi
+ if [ "$(cat "$D/lights/direct" 2>/dev/null)" = groups ]; then active=$(cat "$D/lights/active-$controller" 2>/dev/null);[ "$active" = 1 ] || active=0;fi
  if [ "$active" = 0 ]; then
   # Re-enabling an off controller must not revive its other old color.
   echo 1 > "$node/enable" || fail 'Selected-light enable failed; original settings retained'

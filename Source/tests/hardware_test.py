@@ -24,6 +24,8 @@ with tempfile.TemporaryDirectory(prefix='odin-controls-test-') as folder:
     script=source.read_text()
     for a,b in replacements.items():script=script.replace(a,b)
     writes=root/'zone-writes'
+    settles=root/'observer-settles'
+    script=script.replace('then sleep 1;fi', 'then echo settle >> "'+str(settles)+'";sleep 1;fi')
     script=script.replace('  echo "$2-$r:$g:$b:255" > "$1"', '  echo "$1|$2-$r:$g:$b:255" >> "'+str(writes)+'"; echo "$2-$r:$g:$b:255" > "$1"')
     helper=root/'hardware.sh';helper.write_text(script)
     def executable(name,body):
@@ -310,6 +312,58 @@ esac''')
         before={k:value(k) for k in saved};run('light-zones','FF0000','0000FF','00FF00','FFFF00',25,50,75,100,'on','invalid',ok=False)
         assert all(value(k)==v for k,v in before.items())
         print('PASS analog/side independent group toggles, per-zone color/brightness retention, invalid mask rejection and original restore')
+        # Direct toggles must persist the mask the OEM restores after standby.
+        stock_before={k:value(k) for k in saved};log_before=(state/'put-log').read_text()
+        for analog,side in [('off','on'),('on','off'),('off','off'),('on','on')]:
+            writes.write_text('');run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,side,analog)
+            lines=writes.read_text().splitlines()
+            assert lines==[
+              f'{lights}/left|1-'+('0:63:0:255' if side=='on' else '0:0:0:255'),
+              f'{lights}/left|2-'+('255:0:0:255' if analog=='on' else '0:0:0:255'),
+              f'{lights}/right|1-'+('191:96:0:255' if side=='on' else '0:0:0:255'),
+              f'{lights}/right|2-'+('0:0:127:255' if analog=='on' else '0:0:0:255')],lines
+            want='1' if analog=='on' or side=='on' else '0'
+            assert (lights/'l/enable').read_text().strip()==want and (lights/'r/enable').read_text().strip()==want
+            assert value('left_joystick_light_enabled')==value('right_joystick_light_enabled')==('1' if analog=='on' else '0')
+            assert value('left_handle_light_enabled')==value('right_handle_light_enabled')==('1' if side=='on' else '0')
+            assert value('led_light_picker_color')==stock_before['led_light_picker_color']
+            assert value('led_light_brightness_percent')==stock_before['led_light_brightness_percent']
+            # Repeating the same mask must not trigger another OEM repaint.
+            log=(state/'put-log').read_text()
+            run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,side,analog)
+            assert (state/'put-log').read_text()==log
+        settle_before=settles.read_text()
+        run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,'off','off')
+        assert settles.read_text()==settle_before,'All-off unnecessarily waited for color settling'
+        # OEM-compatible colors/levels need no observer delay, even if a
+        # disabled zone contains a different cached color for its next enable.
+        (state/'led_light_picker_color').write_text(str(0xFFFF8000-2**32))
+        (state/'led_light_brightness_percent').write_text('0.5')
+        run('light-groups','FF8000','ff8000','123456','ABCDEF',50,50,25,75,'off','on')
+        assert settles.read_text()==settle_before,'Shared OEM profile needlessly settled'
+        run('light-groups','FF8000','ff8000','FF8000','FF8000',50,50,50,50,'on','on')
+        assert settles.read_text()==settle_before,'Consecutive shared toggles needlessly settled'
+        run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,'off','on')
+        assert len(settles.read_text().splitlines())==len(settle_before.splitlines())+1,'Independent colors lost settling protection'
+        run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,'off','off')
+        # Both the persistent mask and controller journal are now off.
+        writes.write_text('');run('light-one',0,'FFFFFF',10)
+        assert writes.read_text().splitlines()==[f'{lights}/l/brightness|1-0:0:0:255',f'{lights}/l/brightness|2-25:25:25:255'],writes.read_text()
+        assert (lights/'l/enable').read_text().strip()=='1' and (lights/'r/enable').read_text().strip()=='0'
+        # External OEM off supersedes cached direct enable state before single Save.
+        for k in ['left_joystick_light_enabled','right_joystick_light_enabled','left_handle_light_enabled','right_handle_light_enabled']:(state/k).write_text('0')
+        (lights/'l/enable').write_text('0');writes.write_text('');run('light-one',0,'FFFFFF',10,'system')
+        assert writes.read_text().splitlines()==[f'{lights}/l/brightness|1-0:0:0:255',f'{lights}/l/brightness|2-25:25:25:255'],writes.read_text()
+        for k,v in stock_before.items():
+            if v=='null':(state/k).unlink(missing_ok=True)
+            else:(state/k).write_text(v)
+        run('restore-light');assert all(value(k)==v for k,v in stock_before.items())
+        assert not (control/'lights').exists(),'Fast journal prevented restoration cleanup'
+        writes.write_text('');run('light-groups','FF0000','0000FF','00FF00','FF8000',100,50,25,75,'keep','on',ok=False)
+        assert not writes.read_text() and not (control/'lights').exists()
+        run('light-groups','FF0000','0000FF','00FF00','FF8000',100,101,25,75,'on','on',ok=False)
+        assert not writes.read_text() and all(value(k)==v for k,v in stock_before.items())
+        print('PASS durable group masks: persisted wake flags, unchanged stock color/brightness, idempotent writes, exact zone colors, controller state, single Save, external takeover and recovery')
         print('PASS independent brightness 0/10/25/50/100%, legacy brightness compatibility, validation and exact restoration')
         print('PASS single-light targets, brightness, no stock setting changes, off-to-single activation and other-zone preservation')
         # Setup backup preserves existing original journals instead of Raven's live changes.

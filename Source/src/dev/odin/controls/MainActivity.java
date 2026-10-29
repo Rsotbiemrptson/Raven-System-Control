@@ -219,7 +219,7 @@ public final class MainActivity extends Activity {
     if(!Build.MODEL.equals("Odin2")&&!every){commit.run();return;}
     busy=true;dialog.setCancelable(false);for(Button button:footerButtons)button.setEnabled(false);save.setText("Saving…");
     final boolean analogBefore=ProfileActions.groupOn(this,true),sideBefore=ProfileActions.groupOn(this,false);
-    final String request=every?lightingRequest(new String[]{hex,hex,hex,hex},new int[]{appliedLevel,appliedLevel,appliedLevel,appliedLevel},"on"):"light-one "+editing+" "+hex+" "+appliedLevel;
+    final String request=every?lightingRequest(new String[]{hex,hex,hex,hex},new int[]{appliedLevel,appliedLevel,appliedLevel,appliedLevel},"on"):"light-one "+editing+" "+hex+" "+appliedLevel+(DeviceState.led(this).equals("System LEDs")?" system":"");
     io.execute(()->{String error=null;try{Root.run(this,request);if(every)DeviceState.ownLED(this,"Custom LEDs");else DeviceState.ownSingleLED(this,editing,analogBefore,sideBefore);lastLED=DeviceState.ledSignature(this);}catch(Exception e){error=e.getMessage();}final String failure=error;runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;if(failure==null){lightingStatus=every?"Lighting colors applied":labels[editing]+" color applied";commit.run();}else{dialog.setCancelable(true);for(Button button:footerButtons)button.setEnabled(true);save.setText(Build.MODEL.equals("Odin2")?"Save":"Save draft");rgb.setError(failure);}});});
    };
    save.setOnClickListener(v->apply.accept(false));applyAll.setOnClickListener(v->apply.accept(true));

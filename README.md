@@ -6,9 +6,11 @@
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.10** · Package: `dev.odin.controls` · Version code: `34` · License: **GPL-3.0-only**
+**Current release: 0.2.14-preview** · Package: `dev.odin.controls` · Version code: `39` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.10/Raven-System-Control-0.2.10.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.10)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.14-preview/Raven-System-Control-0.2.14-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.14-preview)
+
+**Preview release:** Odin 2 has been tested on hardware. Odin 3 hardware testing is coming soon; its support remains unverified until those checks are complete.
 
 ## Features
 
@@ -19,6 +21,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 - Separate saved fan and LED profiles. Selecting an LED profile applies it immediately.
 - Raven Fan and Raven LED Quick Settings tiles. Tap for profiles; long-press opens the corresponding app tab. Selections leave the chooser open. Only its profile list scrolls; controls stay fixed. Back or an outside tap dismisses it.
 - Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls and selection indicators follow the app accent; popup titles, profile names and light-switch labels use neutral text. Redundant on/off buttons are removed from the Fan chooser and Odin 2 LED chooser.
+- Responsive analog/side switching: one switch no longer locks the other. Shared-color profiles skip the extra observer wait; independent colors retain it to preserve per-LED brightness and color. Group on/off settings persist through standby.
 - Orange Raven icon, adjustable accent, light/dark appearance and compact About popup.
 - First-launch guided setup with a fan-control warning and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 
@@ -27,7 +30,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 | Device | Accepted software | Status |
 | --- | --- | --- |
 | Odin 2 (`Odin2`) | Android 13 / API 33 | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
-| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | **Preview:** implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
+| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | **Preview — hardware testing coming soon:** implemented from local firmware 107/151 evidence. **No Odin 3 hardware test has been performed.** |
 | Other devices | — | Hardware controls are blocked; compatibility is not assumed. |
 
 Hardware controls currently require the primary Android user (user 0).
