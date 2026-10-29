@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.16-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.17-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.16-preview** · Package: `dev.odin.controls` · Version code: `41` · License: **GPL-3.0-only**
+**Current release: 0.2.17-preview** · Package: `dev.odin.controls` · Version code: `42` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.16-preview/Raven-System-Control-0.2.16-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.16-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.17-preview/Raven-System-Control-0.2.17-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.17-preview)
 
 **Preview release:** Odin 2 has been tested on hardware. Odin 3 hardware testing is coming soon; its support remains unverified until those checks are complete.
 
