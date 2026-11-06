@@ -19,9 +19,43 @@ restore_key() {
 }
 now() { cut -d. -f1 /proc/uptime; }
 number() { case "$1" in ''|*[!0-9]*) return 1;; esac; }
+valid_temperature_source() {
+ if [ "$1" = cpu-average ]; then [ "$model" = Odin3 ]; return; fi
+ number "$1" && [ "${#1}" -le 3 ]
+}
+read_temperature() {
+ valid_temperature_source "$1" || return 1
+ if [ "$1" = cpu-average ]; then
+  # Odin 3 stock Smart averages the CPU thermal types, keyed by type.
+  # Fail closed if a CPU reading is invalid, rather than undercounting heat.
+  awk 'BEGIN {
+   for (i=1; i<ARGC; i++) {
+    path=ARGV[i]
+    read_type=(getline type < path)
+    close(path)
+    if (read_type != 1 || tolower(type) !~ /cpu/) continue
+    sub(/type$/, "temp", path)
+    read_temp=(getline raw < path)
+    close(path)
+    if (read_temp != 1 || raw !~ /^[0-9]+([.][0-9]+)?$/) exit 1
+    temp=raw+0
+    if (temp>250) temp/=1000
+    if (temp<=0 || temp>250) exit 1
+    temperatures[type]=temp
+   }
+   for (type in temperatures) { sum+=temperatures[type]; count++ }
+   if (!count) exit 1
+   print int(sum/count)
+  }' /sys/devices/virtual/thermal/thermal_zone*/type
+ else
+  raw=$(cat "/sys/class/thermal/thermal_zone$1/temp" 2>/dev/null) || return 1
+  number "$raw" || return 1
+  if [ "$raw" -ge 1000 ]; then echo "$((raw/1000))"; else echo "$raw"; fi
+ fi
+}
 valid_token() { [ "${#1}" -eq 32 ] || return 1; case "$1" in *[!a-f0-9]*) return 1;; esac; }
 valid_points() {
- printf '%s\n' "$1" | awk -F, 'NF<3||NF>8{exit 1} {last=34;speed=0;for(i=1;i<=NF;i++){if($i !~ /^[0-9]+:[0-9]+$/)exit 1;split($i,p,":");if(p[1]<35||p[1]>78||p[1]<last+1||p[2]<speed||(p[2]!=0&&(p[2]<50||p[2]>70)))exit 1;last=p[1];speed=p[2]}if(speed<50)exit 1}'
+ printf '%s\n' "$1" | awk -F, -v extended="${2:-standard}" 'NF<3||NF>8{exit 1} {last=34;speed=0;for(i=1;i<=NF;i++){if($i !~ /^[0-9]+:[0-9]+$/)exit 1;split($i,p,":");if(p[1]<35||p[1]>78||p[1]<last+1||p[2]<speed||p[2]>100||(p[2]!=0&&(p[2]<(extended=="extended"?10:50)||p[2]>(extended=="extended"?100:70))))exit 1;last=p[1];speed=p[2]}if(speed<(extended=="extended"?10:50))exit 1}'
 }
 points_percent() {
  awk -v curve="$points" -v temp="$temp" -v was="$was" 'BEGIN{n=split(curve,a,",");first=0;for(i=1;i<=n;i++){split(a[i],p,":");t[i]=p[1]+0;s[i]=p[2]+0;if(!first&&s[i]>0)first=i}if(!was&&temp<t[first]){print 0;exit}if(temp<=t[1]){print s[1];exit}for(i=2;i<=n;i++)if(temp<=t[i]){if(s[i-1]==0){print (was&&temp>t[i-1]?s[i]:temp<t[i]?0:s[i]);exit}print int(s[i-1]+(s[i]-s[i-1])*(temp-t[i-1])/(t[i]-t[i-1]));exit}print s[n]}'
@@ -139,10 +173,12 @@ cleanup() {
   if [ "$reason" = stopped ]; then
    if ! { restore_key "$R/speed" fan_speed && { [ ! -f "$R/smart" ] || restore_key "$R/smart" smart_fan_mode_switch; } && restore_key "$R/mode" fan_mode; }; then
     reason=restore-failed;recovery=1
+    put smart_fan_mode_switch 1 || reason=restore-and-automatic-failed
     put fan_mode 4 || reason=restore-and-automatic-failed
    fi
   else
    restore_key "$R/speed" fan_speed || { reason="$reason-speed-restore-failed";recovery=1; }
+   put smart_fan_mode_switch 1 || { reason="$reason-smart-switch-failed";recovery=1; }
    put fan_mode 4 || { reason="$reason-automatic-failed";recovery=1; }
   fi
  fi
@@ -154,14 +190,24 @@ cleanup() {
   echo "ERROR $reason; original settings retained. Retry Stop & restore."
   exit 1
  fi
- rm -f "$R/armed" "$R/mode" "$R/speed" "$R/smart" "$R/token" "$R/lease" "$R/lease.tmp" "$R/stop" "$R/config" "$R/config.tmp" "$R/pid" "$R/status" "$R/recovery"
+ rm -f "$R/armed" "$R/mode" "$R/speed" "$R/smart" "$R/token" "$R/lease" "$R/lease.tmp" "$R/stop" "$R/config" "$R/config.tmp" "$R/pid" "$R/status" "$R/status.tmp" "$R/recovery"
  rmdir "$R" 2>/dev/null || true
  [ "$OP" != stop ] || echo 'OK Previous fan settings restored'
  exit "$result"
 }
 gate
 case "${1:-}" in
+fan-temperature)
+ [ "$#" -eq 2 ] || fail 'Invalid temperature request'
+ reading=$(read_temperature "$2") || fail 'Temperature source unavailable'
+ echo "OK $reading"
+ ;;
 oem-sensor)
+ if [ "$model" = Odin3 ]; then
+  read_temperature cpu-average >/dev/null || fail 'CPU temperature average unavailable'
+  echo 'OK cpu-average'
+  exit 0
+ fi
  # Same ordered discovery as the Odin2 OEM CpuTemperatureUtils. Stop rather
  # than silently using a different source if an unsupported alternate wins.
  for path in /sys/class/thermal/thermal_zone1/temp /sys/devices/system/cpu/cpu0/cpufreq/cpu_temp /sys/devices/system/cpu/cpu0/cpufreq/FakeShmoo_cpu_temp /sys/class/thermal/thermal_zone0/temp /sys/class/i2c-adapter/i2c-4/4-004c/temperature /sys/devices/platform/tegra-i2c.3/i2c-4/4-004c/temperature /sys/devices/platform/omap/omap_temp_sensor.0/temperature /sys/devices/platform/tegra_tmon/temp1_input /sys/kernel/debug/tegra_thermal/temp_tj /sys/devices/platform/s5p-tmu/temperature /sys/class/hwmon/hwmon0/device/temp1_input /sys/class/thermal/thermal_zone3/temp /sys/class/thermal/thermal_zone4/temp; do
@@ -183,19 +229,22 @@ stock-fan)
  ;;
 start2|update2)
  [ "$#" -eq 2 ] && valid_token "$2" || fail 'Invalid session token'
- read -r kind zone off on full low high manual points extra < "$(dirname "$0")/curve.cfg" || fail 'Curve configuration is missing'
+ read -r kind zone off on full low high manual points range extra < "$(dirname "$0")/curve.cfg" || fail 'Curve configuration is missing'
  [ -z "${extra:-}" ] || fail 'Unexpected curve fields'
+ range=${range:-standard};case "$range" in standard) min_speed=50;max_speed=70;; extended) min_speed=10;max_speed=100;; *) fail 'Invalid fan range';; esac
  case "$kind" in curve|manual) ;; *) fail 'Invalid curve mode';; esac
- for n in "$zone" "$off" "$on" "$full" "$low" "$high" "$manual"; do number "$n" || fail 'Invalid curve configuration';done
- [ "$zone" -le 999 ] && [ "$manual" -ge 50 ] && [ "$manual" -le 70 ] || fail 'Invalid sensor or manual speed'
- valid_points "$points" || fail 'Invalid curve points'
- [ -r "/sys/class/thermal/thermal_zone$zone/temp" ] || fail 'Temperature sensor unavailable'
+ for n in "$off" "$on" "$full" "$low" "$high" "$manual"; do number "$n" || fail 'Invalid curve configuration';done
+ valid_temperature_source "$zone" && [ "$manual" -ge "$min_speed" ] && [ "$manual" -le "$max_speed" ] || fail 'Invalid sensor or manual speed'
+ valid_points "$points" "$range" || fail 'Invalid curve points'
+ fan_gate
+ [ "$(cat /sys/class/gpio5_pwm2/period)" = 50000 ] || fail 'Unexpected fan PWM period'
+ read_temperature "$zone" >/dev/null || fail 'Temperature sensor unavailable'
  if [ "$OP" = start2 ]; then
-  started=$(sh "$0" start "$2" "$kind" "$zone" 45 50 75 50 70 "$manual") || fail "$started"
+  started=$(sh "$0" start "$2" "$kind" "$zone" 45 50 75 50 70 "$manual" "$range") || fail "$started"
  else
   [ "$(cat "$R/token" 2>/dev/null)" = "$2" ] && [ ! -f "$R/stop" ] || fail 'Fan session ended'
  fi
- printf '%s %s %s %s %s %s %s %s %s\n' "$kind" "$zone" 45 50 75 50 70 "$manual" "$points" > "$R/config.tmp" && mv "$R/config.tmp" "$R/config" || fail 'Cannot update protected curve'
+ printf '%s %s %s %s %s %s %s %s %s %s\n' "$kind" "$zone" 45 50 75 50 70 "$manual" "$points" "$range" > "$R/config.tmp" && mv "$R/config.tmp" "$R/config" || fail 'Cannot update protected curve'
  echo 'OK Cooling profile applied'
  ;;
 backup-create)
@@ -231,15 +280,15 @@ probe)
 start)
  fan_gate
  [ "$(cat /sys/class/gpio5_pwm2/period)" = 50000 ] || fail 'Unexpected fan PWM period'
- [ "$#" -eq 10 ] || fail 'Invalid session parameters'
+ [ "$#" -eq 10 ] || [ "$#" -eq 11 ] || fail 'Invalid session parameters'
  token=$2;kind=$3;zone=$4;off=$5;on=$6;full=$7;low=$8;high=$9;manual=${10}
+ range=${11:-standard};case "$range" in standard) min_speed=50;max_speed=70;; extended) min_speed=10;max_speed=100;; *) fail 'Invalid fan range';; esac
  valid_token "$token" || fail 'Invalid session token'
- for n in "$zone" "$off" "$on" "$full" "$low" "$high" "$manual"; do number "$n" || fail 'Non-numeric policy'; done
- [ "$zone" -le 999 ] && [ "$off" -ge 35 ] && [ "$on" -ge 40 ] && [ "$off" -lt "$on" ] && [ "$on" -lt "$full" ] && [ "$full" -le 78 ] || fail 'Invalid temperature curve'
- [ "$low" -ge 50 ] && [ "$low" -le "$high" ] && [ "$high" -le 70 ] && [ "$manual" -ge 50 ] && [ "$manual" -le 70 ] || fail 'Invalid PWM range'
+ for n in "$off" "$on" "$full" "$low" "$high" "$manual"; do number "$n" || fail 'Non-numeric policy'; done
+ valid_temperature_source "$zone" && [ "$off" -ge 35 ] && [ "$on" -ge 40 ] && [ "$off" -lt "$on" ] && [ "$on" -lt "$full" ] && [ "$full" -le 78 ] || fail 'Invalid temperature curve'
+ [ "$low" -ge 50 ] && [ "$low" -le "$high" ] && [ "$high" -le 70 ] && [ "$manual" -ge "$min_speed" ] && [ "$manual" -le "$max_speed" ] || fail 'Invalid PWM range'
  case "$kind" in curve|manual) ;; *) fail 'Invalid control mode';; esac
- sensor=/sys/class/thermal/thermal_zone$zone/temp
- [ -r "$sensor" ] || fail 'Selected temperature sensor is unavailable'
+ read_temperature "$zone" >/dev/null || fail 'Selected temperature sensor is unavailable'
  umask 077
  mkdir -p "$D" || fail 'Cannot create session directory'
  chmod 700 "$D" || fail 'Cannot protect session directory'
@@ -248,7 +297,7 @@ start)
  trap cleanup EXIT INT TERM
  snapshot "$R/mode" fan_mode && snapshot "$R/speed" fan_speed && snapshot "$R/smart" smart_fan_mode_switch || fail 'Cannot snapshot stock settings'
  printf '%s' "$token" > "$R/token"
- printf '%s %s %s %s %s %s %s %s\n' "$kind" "$zone" "$off" "$on" "$full" "$low" "$high" "$manual" > "$R/config"
+ printf '%s %s %s %s %s %s %s %s %s %s\n' "$kind" "$zone" "$off" "$on" "$full" "$low" "$high" "$manual" - "$range" > "$R/config"
  now > "$R/lease"
  cp "$0" "$D/hardware.sh" && chmod 700 "$D/hardware.sh" || fail 'Cannot stage session controller'
  # The protected root-owned copy is the only background executable.
@@ -266,7 +315,7 @@ lease)
  ;;
 loop)
  [ "$#" -eq 2 ] && valid_token "$2" && [ "$(cat "$R/token" 2>/dev/null)" = "$2" ] || fail 'Invalid background session'
- read -r kind zone off on full low high manual < "$R/config"
+ read -r kind zone off on full low high manual points range extra < "$R/config"
  reason=controller-error
  trap cleanup EXIT
  trap 'reason=stopped; exit 0' INT TERM
@@ -276,13 +325,16 @@ loop)
   [ ! -f "$R/stop" ] || { reason=stopped; exit 0; }
   [ "$(am get-current-user 2>/dev/null)" = 0 ] || { reason=user-changed; exit 0; }
   if [ -n "$expected_mode" ] && { [ "$(get fan_mode)" != "$expected_mode" ] || [ "$(get fan_speed)" != "$expected_speed" ] || [ "$(get smart_fan_mode_switch)" = 1 ]; }; then reason=system-control-changed;exit 0;fi
-  read -r kind zone off on full low high manual points < "$R/config"
+  read -r kind zone off on full low high manual points range extra < "$R/config" || { reason=invalid-policy;exit 0; }
+  range=${range:-standard};case "$range" in standard) min_speed=50;max_speed=70;; extended) min_speed=10;max_speed=100;; *) reason=invalid-policy;exit 0;; esac
+  number "$manual" && [ "$manual" -ge "$min_speed" ] && [ "$manual" -le "$max_speed" ] && [ -z "${extra:-}" ] || { reason=invalid-policy;exit 0; }
+  [ "${points:-}" != - ] || points=
+  if [ -n "${points:-}" ]; then valid_points "$points" "$range" || { reason=invalid-policy;exit 0; };fi
+  [ "$(cat /sys/class/gpio5_pwm2/period)" = 50000 ] || { reason=pwm-period-changed;exit 0; }
   time=$(now);lease=$(cat "$R/lease" 2>/dev/null)
   number "$time" && number "$lease" || { reason=lease-invalid; exit 0; }
   [ "$((time-lease))" -le 15 ] && [ "$time" -ge "$lease" ] || { reason=app-lease-expired; exit 0; }
-  raw=$(cat "/sys/class/thermal/thermal_zone$zone/temp" 2>/dev/null)
-  number "$raw" || { reason=sensor-unavailable; exit 0; }
-  temp=$raw;[ "$raw" -lt 1000 ] || temp=$((raw/1000))
+  temp=$(read_temperature "$zone") || { reason=sensor-unavailable; exit 0; }
   [ "$temp" -gt 0 ] && [ "$temp" -lt 80 ] || { reason=temperature-fallback; exit 0; }
   if [ "$kind" = manual ]; then percent=$manual
   elif [ -n "${points:-}" ]; then percent=$(points_percent)
@@ -290,6 +342,7 @@ loop)
   elif [ "$temp" -le "$on" ]; then percent=$low
   elif [ "$temp" -ge "$full" ]; then percent=$high
   else percent=$((low+(high-low)*(temp-on)/(full-on))); fi
+  number "$percent" && [ "$percent" -le "$max_speed" ] && { [ "$percent" -eq 0 ] || [ "$percent" -ge "$min_speed" ]; } || { reason=invalid-output;exit 0; }
   # Once running, avoid cycling the motor for at least 20 seconds.
   if [ "$percent" -eq 0 ] && [ "$was" -eq 1 ] && [ "$((time-last_start))" -lt 20 ]; then percent=$low; fi
   touch "$R/armed"
@@ -305,7 +358,9 @@ loop)
    was=1
   fi
   if [ "$percent" -eq 0 ]; then expected_mode=0;expected_speed=$(get fan_speed);else expected_mode=6;expected_speed=$duty;fi
-  printf '%s°C · fan speed %s%%' "$temp" "$percent" > "$R/status"
+  # Lease and diagnostics must see a complete sample while the loop publishes.
+  printf '%s°C · fan speed %s%%' "$temp" "$percent" > "$R/status.tmp" &&
+   mv "$R/status.tmp" "$R/status" || { reason=status-write-failed; exit 0; }
   sleep 3
  done
  ;;

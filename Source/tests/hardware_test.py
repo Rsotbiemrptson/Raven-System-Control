@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='odin-controls-test-') as folder:
     replacements={
         'D=/data/local/odin-controls':f'D={root}/control',
         '/sys/class/gpio5_pwm2':str(fan), '/sys/class/thermal':str(root/'thermal'),
+        '/sys/devices/virtual/thermal':str(root/'thermal'),
         '/sys/class/sn3112l/led/brightness':str(lights/'left'),
         '/sys/class/sn3112r/led/brightness':str(lights/'right'),
         '/sys/class/sn3112$controller/led':str(lights)+'/$controller',
@@ -46,7 +47,9 @@ delete) [ -f "$D/ignore-delete-$5" ] || rm -f "$D/$5";;
 esac''')
     env=dict(os.environ,PATH=str(bin)+':'+os.environ['PATH'])
     def run(*args,ok=True):
-        p=subprocess.run(['sh',str(helper),*map(str,args)],env=env,capture_output=True,text=True,timeout=5)
+        # Stop may wait up to5s for the controller; allow its timeout response
+        # to reach the harness rather than killing the caller at the same limit.
+        p=subprocess.run(['sh',str(helper),*map(str,args)],env=env,capture_output=True,text=True,timeout=8)
         if ok:assert p.returncode==0 and p.stdout.startswith('OK'),(args,p.stdout,p.stderr)
         else:assert p.returncode!=0,(args,p.stdout,p.stderr)
         return p.stdout
@@ -65,6 +68,7 @@ esac''')
         waitfor(lambda:(runpath/'status').exists())
     try:
         run('probe');assert not control.exists(),'Read-only probe wrote files'
+        executable('getprop','case "$1" in ro.product.model) echo Odin2;; ro.build.version.sdk) echo 33;; *) echo Odin2_Custom_V1.0.0.400;; esac')
         assert run('oem-sensor').strip()=='OK 0'
         preferred=root/'thermal/thermal_zone1';preferred.mkdir();(preferred/'temp').write_text('51000')
         assert run('oem-sensor').strip()=='OK 1'
@@ -72,6 +76,29 @@ esac''')
         (preferred/'temp').write_text('invalid');assert run('oem-sensor').strip()=='OK 0'
         previous=(thermal/'temp').read_text();(thermal/'temp').write_text('0');run('oem-sensor',ok=False);(thermal/'temp').write_text(previous)
         print('PASS automatic OEM temperature discovery, priority, invalid/zero fallback and unavailable-source rejection')
+
+        run('fan-temperature','cpu-average',ok=False)
+        executable('getprop','case "$1" in ro.product.model) echo Odin3;; *) echo 35;; esac')
+        (thermal/'type').write_text('cpu-test-a')
+        (preferred/'type').write_text('CPU-test-b')
+        other=root/'thermal/thermal_zone2';other.mkdir()
+        (other/'type').write_text('gpu-test');(other/'temp').write_text('110000')
+        (thermal/'temp').write_text('42000');(preferred/'temp').write_text('58.5')
+        assert run('oem-sensor').strip()=='OK cpu-average'
+        assert run('fan-temperature','cpu-average').strip()=='OK 50'
+        for failure in ('hot','unreadable'):
+            (thermal/'temp').write_text('42000');(preferred/'temp').write_text('58.5')
+            (state/'fan_mode').write_text('4');(state/'smart_fan_mode_switch').write_text('1')
+            (root/'curve.cfg').write_text('curve cpu-average 45 50 75 50 70 55 35:50,45:50,55:70,78:70 standard\n')
+            run('start2',token)
+            waitfor(lambda:value('fan_mode')=='6' and value('fan_speed')=='30000')
+            if failure=='hot':
+                (preferred/'temp').write_text('120000') # Mean becomes 81 C.
+            else:
+                (preferred/'temp').write_text('unavailable')
+            waitfor(lambda:not runpath.exists())
+            assert value('fan_mode')=='4' and value('smart_fan_mode_switch')=='1'
+        print('PASS Odin3 CPU average drives the curve and falls back on heat or missing readings')
 
         run('start','bad','curve',0,45,50,75,50,70,55,ok=False)
         run('start',token,'curve',0,50,45,75,50,70,55,ok=False)
@@ -425,6 +452,53 @@ esac''')
         run('stock-fan',99,ok=False)
         run('backup-create');catalog=(control/'stock-fan-v1/modes').read_text();run('backup-create');assert (control/'stock-fan-v1/modes').read_text()==catalog
         print('PASS multipoint start, live update, invalid curve rejection, system takeover without restoration, stock Smart and immutable stock catalog')
+        # Only the explicit extended range may request 10..100 while running. Temperature,
+        # duty-period, fallback, minimum-run and OEM takeover guards remain.
+        for cfg in [
+            'manual 0 45 50 75 50 70 0 35:0,50:50,78:70 standard',
+            'manual 0 45 50 75 50 70 100 35:0,50:50,78:70',
+            'manual 0 45 50 75 50 70 0 35:0,50:10,78:100 extended',
+            'manual 0 45 50 75 50 70 1 35:0,50:10,78:100 extended',
+            'manual 0 45 50 75 50 70 9 35:0,50:10,78:100 extended',
+            'curve 0 45 50 75 50 70 55 35:0,50:1,78:100 extended',
+            'curve 0 45 50 75 50 70 55 35:0,50:9,78:100 extended',
+            'manual 0 45 50 75 50 70 101 35:0,50:10,78:100 extended',
+            'curve 0 45 50 75 50 70 55 35:0,50:10,79:100 extended',
+            'curve 0 45 50 75 50 70 55 35:0,50:10,78:101 extended',
+            'curve 0 45 50 75 50 70 55 35:0,50:10,78:100 other',
+        ]:
+            config.write_text(cfg+'\n');run('start2',token,ok=False);assert not runpath.exists()
+        (thermal/'temp').write_text('62000');uptime.write_text('200.00 0.00')
+        config.write_text('manual 0 45 50 75 50 70 100 35:0,50:10,78:100 extended\n')
+        run('start2',token);waitfor(lambda:value('fan_speed')=='50000' and value('fan_mode')=='6')
+        assert (runpath/'config').read_text().strip().endswith('extended')
+        (thermal/'temp').write_text('35000')
+        config.write_text('curve 0 45 50 75 50 70 10 35:0,50:10,78:100 extended\n')
+        run('update2',token);waitfor(lambda:value('fan_speed')=='25000') # minimum20s running guard
+        assert value('fan_mode')=='6'
+        uptime.write_text('214.00 0.00');run('lease',token)
+        uptime.write_text('221.00 0.00');waitfor(lambda:value('fan_mode')=='0')
+        (thermal/'temp').write_text('62000')
+        config.write_text('manual 0 45 50 75 50 70 10 35:0,50:10,78:100 extended\n')
+        run('update2',token);run('lease',token);waitfor(lambda:value('fan_speed')=='5000' and value('fan_mode')=='6')
+        run('stock-fan',4)
+        config.write_text('curve 0 45 50 75 50 70 55 35:0,50:10,60:50,78:100 extended\n')
+        run('start2',token);waitfor(lambda:value('fan_speed')=='27500' and value('fan_mode')=='6')
+        (thermal/'temp').write_text('80000');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='4'
+        assert (control/'last-result').read_text()=='temperature-fallback'
+        (thermal/'temp').write_text('62000');uptime.write_text('300.00 0.00')
+        run('start2',token);waitfor(lambda:(runpath/'status').exists())
+        uptime.write_text('316.00 0.00');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='4'
+        assert (control/'last-result').read_text()=='app-lease-expired'
+        uptime.write_text('400.00 0.00');run('start2',token);waitfor(lambda:(runpath/'status').exists())
+        (state/'fan_mode').write_text('1');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='1'
+        uptime.write_text('500.00 0.00');run('start2',token);waitfor(lambda:(runpath/'status').exists())
+        (fan/'period').write_text('40000');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='4'
+        assert (control/'last-result').read_text()=='pwm-period-changed';(fan/'period').write_text('50000')
+        uptime.write_text('600.00 0.00');run('start2',token);waitfor(lambda:(runpath/'status').exists())
+        (thermal/'temp').write_text('invalid');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='4'
+        assert (control/'last-result').read_text()=='sensor-unavailable';(thermal/'temp').write_text('62000')
+        print('PASS extended10/100% requests, curve-off/minimum-run behavior, rejection of manual0..9 and curve1..9, exact duty cap, standard opt-out rejection, temperature/order guards, minimum run time,80C/sensor/lease fallback, OEM takeover and changed-period fallback')
         executable('getprop','case "$1" in ro.product.model) echo Odin2;; ro.build.version.sdk) echo 33;; *) echo UnknownFirmware;; esac')
         run('probe',ok=False)
         executable('getprop','case "$1" in ro.product.model) echo Odin3;; *) echo 33;; esac')

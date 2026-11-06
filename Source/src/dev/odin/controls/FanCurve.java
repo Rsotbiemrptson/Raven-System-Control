@@ -15,7 +15,10 @@ public final class FanCurve {
   return low+(int)((high-low)*(temp-on)/(full-on));
  }
  public static int manual(int value) {
-  if(value<50||value>70)throw new IllegalArgumentException("Preview manual range is 50–70%.");
+  return manual(value,false);
+ }
+ public static int manual(int value,boolean extended) {
+  if(value<(extended?10:50)||value>(extended?100:70))throw new IllegalArgumentException(extended?"Fan speed must be 10–100%.":"Enable Extended fan speed range in Settings → Advanced for speeds outside 50–70%.");
   return value;
  }
 }

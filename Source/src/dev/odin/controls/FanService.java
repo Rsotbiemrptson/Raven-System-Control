@@ -15,6 +15,10 @@ public final class FanService extends Service {
  private String token;
  private String failure="";
  private ScheduledFuture<?> ticker;
+ private boolean sessionExtended;
+ static boolean validTemperatureSource(String source){
+  return source.matches("[0-9]{1,3}")||("Odin3".equals(Build.MODEL)&&"cpu-average".equals(source));
+ }
  static boolean notificationsAvailable(Context c){
   NotificationManager nm=c.getSystemService(NotificationManager.class);
   NotificationChannel channel=nm.getNotificationChannel("fan");
@@ -38,10 +42,10 @@ public final class FanService extends Service {
   if(closing)return START_NOT_STICKY;
   if(!getSharedPreferences("profile",0).getBoolean("fanControlEnabled",false)){status="Enable fan control in Guided Setup first";stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
   if(!notificationsAvailable(this)){status="Fan profile not applied: enable fan control notifications";stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
-  int manual=intent.getIntExtra("manual",55),zone=0;
+  int manual=intent.getIntExtra("manual",55);
   String kind="manual".equals(intent.getStringExtra("kind"))?"manual":"curve",points=intent.getStringExtra("points");
   final String name=intent.getStringExtra("profileName")==null?"Custom fan":intent.getStringExtra("profileName");
-  try{CurvePoints.parse(points);FanCurve.manual(manual);if(zone<0||zone>999)throw new IllegalArgumentException("Choose a checked temperature sensor");}
+  try{boolean extended=getSharedPreferences("profile",0).getBoolean("extendedFanRange",false);CurvePoints.parse(points,extended);FanCurve.manual(manual,extended);}
   catch(Exception e){status=e.getMessage();if(!running)stopSelf();return START_NOT_STICKY;}
 
   final boolean fromTile=intent.getBooleanExtra("fromTile",false);
@@ -49,16 +53,21 @@ public final class FanService extends Service {
    try{
     if(closing)return;
     Root.run(this,"probe");
-    String source=Root.run(this,"oem-sensor").substring(3).trim();if(!source.matches("[0-9]{1,3}"))throw new IllegalArgumentException("OEM temperature sensor unavailable");
-    final String configuration=kind+" "+source+" 45 50 75 50 70 "+manual+" "+points+"\n";
+    String source=Root.run(this,"oem-sensor").substring(3).trim();if(!validTemperatureSource(source))throw new IllegalArgumentException("OEM temperature sensor unavailable");
+    // Recheck consent on the worker too: a queued tile action must not retain
+    // a revoked extended-range preference.
+    final boolean extended=getSharedPreferences("profile",0).getBoolean("extendedFanRange",false);CurvePoints.parse(points,extended);FanCurve.manual(manual,extended);
+    final String configuration=kind+" "+source+" 45 50 75 50 70 "+manual+" "+points+" "+(extended?"extended":"standard")+"\n";
     try(java.io.OutputStream out=new java.io.FileOutputStream(new java.io.File(getExternalFilesDir(null),"curve.cfg"))){out.write(configuration.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
     boolean update=token!=null&&running;if(!update)token=UUID.randomUUID().toString().replace("-","");
-    status=Root.run(this,(update?"update2 ":"start2 ")+token).substring(3);running=true;
+    status=Root.run(this,(update?"update2 ":"start2 ")+token).substring(3);running=true;sessionExtended=extended;
+    if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
     getSharedPreferences("profile",0).edit().putString("activeFan",name).putString("lastFanProfile",name).apply();if(fromTile)getSharedPreferences("profile",0).edit().putString("tileFanSelection",name).apply();DeviceState.refreshTiles(this);
     getSharedPreferences("state",0).edit().putString("session",token).apply();
     if(ticker==null)ticker=worker.scheduleWithFixedDelay(()->{
      if(closing)return;
-     try{status=Root.run(this,"lease "+token).substring(3);getSystemService(NotificationManager.class).notify(1,notice());}
+     if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
+     try{String sample=Root.run(this,"lease "+token);if(sample.length()>3)status=sample.substring(3);getSystemService(NotificationManager.class).notify(1,notice());}
      catch(Exception e){failure="System cooling resumed or session ended: "+e.getMessage();status=failure;finishSession();}
     },1,3,TimeUnit.SECONDS);
    }catch(Exception e){failure="Could not apply: "+e.getMessage();status=failure;finishSession();}

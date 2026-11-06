@@ -22,8 +22,9 @@ public final class MainActivity extends Activity {
  private String settingsReturnTab="Fan",backupSummary="Setup creates a protected recovery backup automatically.";
  private final ExecutorService io=Executors.newSingleThreadExecutor();
  private Spinner ledProfilePicker;
- private LinearLayout root,body,nav,actions;private TextView session,lightingStatusView;
- private String lightingStatus="";
+ private LinearLayout root,body,nav,actions;private TextView session,lightingStatusView,fanTemperatureView;
+ private String lightingStatus="",fanTemperature="Fan temperature: Reading...";
+ private boolean temperaturePending=false,resumed=false;
  private android.content.SharedPreferences prefs;
  private boolean busy=false,checked=false,sidesOn=false;
  private String sideLights="keep",sideLeft="FF8000",sideRight="FF8000";
@@ -34,15 +35,15 @@ public final class MainActivity extends Activity {
  private int off=45,on=50,full=75,low=50,high=70,manual=55,brightness=50;
  private String left="FF8000",right="FF8000",kind="curve";
  private Handler timer=new Handler(Looper.getMainLooper());
- private final Runnable tick=new Runnable(){public void run(){if(session!=null)session.setText(fanStatus());syncLEDs();syncFan();timer.postDelayed(this,3000);}};
+ private final Runnable tick=new Runnable(){public void run(){syncLEDs();syncFan();refreshFanTemperature();timer.postDelayed(this,3000);}};
  @Override public void onCreate(Bundle state){
   prefs=getSharedPreferences("profile",0);loadAppearance();super.onCreate(state);getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);getWindow().getDecorView().setSystemUiVisibility(lightTheme?View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR:0);getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);if(!prefs.getBoolean("orangeBrandingV1",false)){android.content.SharedPreferences.Editor update=prefs.edit().putBoolean("orangeBrandingV1",true);if(prefs.getInt("accentColor",DEFAULT_ACCENT)==0xff15a5fc)update.remove("accentColor");update.apply();}accent=prefs.getInt("accentColor",DEFAULT_ACCENT);backupSummary=prefs.getString("recoveryBackupSummary",backupSummary);
   try{load(new JSONObject(prefs.getString("draft","{}")));}catch(Exception ignored){}
   if(state!=null){tab=state.getString("tab","Fan");settingsReturnTab=state.getString("settingsReturn","Fan");}routeTilePreferences();checked=false;migrateProfiles();lastLED=prefs.getString("ledObserved",prefs.contains("draft")?DeviceState.ledSignature(this):"");lastFan=DeviceState.get(this,"fan_mode");draw();if(!prefs.getBoolean("setupCompleteV2",false))timer.post(()->{if(!isFinishing()&&!isDestroyed())guidedSetup();});else io.execute(()->{try{readHardware();}catch(Exception ignored){}runOnUiThread(()->{if(!isFinishing()){syncLEDs();openQuickProfile();}});});
  }
- @Override public void onResume(){super.onResume();timer.removeCallbacks(tick);timer.post(tick);getWindow().getDecorView().post(()->{android.view.WindowInsetsController bars=getWindow().getInsetsController();if(bars!=null){int flags=WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS|WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;bars.setSystemBarsAppearance(lightTheme?flags:0,flags);}});}
+ @Override public void onResume(){super.onResume();resumed=true;timer.removeCallbacks(tick);timer.post(tick);getWindow().getDecorView().post(()->{android.view.WindowInsetsController bars=getWindow().getInsetsController();if(bars!=null){int flags=WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS|WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;bars.setSystemBarsAppearance(lightTheme?flags:0,flags);}});}
  @Override public void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);if(routeTilePreferences())draw();else openQuickProfile();}
- @Override public void onPause(){timer.removeCallbacks(tick);saveDraft();super.onPause();}
+ @Override public void onPause(){resumed=false;timer.removeCallbacks(tick);saveDraft();super.onPause();}
  @Override public void onDestroy(){io.shutdown();super.onDestroy();}
  @Override public void onSaveInstanceState(Bundle out){saveDraft();out.putString("tab",tab);out.putString("settingsReturn",settingsReturnTab);super.onSaveInstanceState(out);}
  @Override public void onConfigurationChanged(android.content.res.Configuration c){super.onConfigurationChanged(c);draw();}
@@ -75,7 +76,7 @@ public final class MainActivity extends Activity {
  Button overflow(){Button b=new Button(this){final Paint paint=new Paint(3);@Override protected void onDraw(Canvas c){paint.setColor(MUTED);for(int i=-1;i<=1;i++)c.drawCircle(getWidth()/2f,getHeight()/2f+dp(i*7),dp(2),paint);}};b.setBackground(box(SURFACE,24));b.setStateListAnimator(null);b.setElevation(0);b.setContentDescription("More options");b.setOnClickListener(v->showMenu(v));return b;}
  void draw(){
   boolean landscape=getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE;
-  session=null;lightingStatusView=null;root=new LinearLayout(this);root.setOrientation(landscape?0:1);root.setBackgroundColor(BG);setContentView(root);
+  session=null;lightingStatusView=null;fanTemperatureView=null;root=new LinearLayout(this);root.setOrientation(landscape?0:1);root.setBackgroundColor(BG);setContentView(root);
   root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars()|(Build.VERSION.SDK_INT>=35?WindowInsets.Type.ime():0));v.setPadding(i.left,i.top,i.right,i.bottom);return insets;});root.requestApplyInsets();
   nav=new LinearLayout(this);nav.setOrientation(landscape?1:0);nav.setPadding(dp(12),dp(12),dp(12),dp(12));nav.setBackgroundColor(SURFACE);
   if(landscape){LinearLayout brand=new LinearLayout(this);brand.setGravity(Gravity.CENTER_VERTICAL);ImageView emblem=new ImageView(this);emblem.setImageDrawable(getApplicationInfo().loadIcon(getPackageManager()));emblem.setContentDescription("Raven System Control");brand.addView(emblem,new LinearLayout.LayoutParams(dp(40),dp(40)));TextView name=text("Raven\nSystem Control",16,TEXT);name.setTypeface(null,Typeface.BOLD);name.setPadding(dp(7),0,0,0);brand.addView(name,new LinearLayout.LayoutParams(0,-2,1));nav.addView(brand,new LinearLayout.LayoutParams(-1,-2));nav.addView(new View(this),new LinearLayout.LayoutParams(1,dp(22)));root.addView(nav,new LinearLayout.LayoutParams(dp(156),-1));}
@@ -87,7 +88,22 @@ public final class MainActivity extends Activity {
   if(tab.equals("Fan"))fan();else if(tab.equals("LEDs"))lights();else if(tab.equals("Settings"))settings();else device();
  }
  void showMenu(View anchor){
-  if(busy)return;PopupMenu menu=new PopupMenu(this,anchor);menu.getMenu().add(0,0,0,"Settings");menu.getMenu().add(0,1,1,"About");menu.setOnMenuItemClickListener(item->{if(item.getItemId()==1){about();return true;}if(!tab.equals("Settings")&&!tab.equals("Device"))settingsReturnTab=tab;saveDraft();tab="Settings";draw();return true;});menu.show();
+  if(busy)return;PopupMenu menu=new PopupMenu(this,anchor);menu.getMenu().add(0,0,0,"Settings");menu.getMenu().add(0,1,1,"About");menu.getMenu().add(0,2,2,"Report an issue");menu.setOnMenuItemClickListener(item->{if(item.getItemId()==2){reportIssue();return true;}if(item.getItemId()==1){about();return true;}if(!tab.equals("Settings")&&!tab.equals("Device"))settingsReturnTab=tab;saveDraft();tab="Settings";draw();return true;});menu.show();
+ }
+ void reportIssue(){
+  String issueUrl="https://github.com/Rsotbiemrptson/Raven-System-Control/issues/new";
+  String version="";
+  try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(PackageManager.NameNotFoundException ignored){}
+  String body="### Test environment\nRaven System Control version: "+version
+   +"\nDevice model: \nAndroid and firmware version: \n"
+   +"\n### Steps to reproduce\n\n### Expected result\n\n### Actual result or error message\n";
+  android.net.Uri issue=android.net.Uri.parse(issueUrl).buildUpon().appendQueryParameter("body",body).build();
+  try{startActivity(new Intent(Intent.ACTION_VIEW,issue));}
+  catch(ActivityNotFoundException unavailable){
+   dialogBuilder().setTitle("Open GitHub Issues")
+    .setMessage("Open this address in a browser to report an issue:\n\n"+issueUrl)
+    .setPositiveButton("Close",null).show();
+  }
  }
  void backFromSettings(){if(busy)return;saveDraft();tab=tab.equals("Device")?"Settings":settingsReturnTab;draw();}
  @Override public void onBackPressed(){if(tab.equals("Settings")||tab.equals("Device"))backFromSettings();else super.onBackPressed();}
@@ -97,13 +113,27 @@ public final class MainActivity extends Activity {
   LinearLayout card=card("Advanced","");TextView title=(TextView)card.getChildAt(0);card.removeViewAt(0);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));final boolean[] opened={prefs.getBoolean("advancedExpanded",true)};View chevron=new View(this){final Paint paint=new Paint(3);@Override protected void onDraw(Canvas canvas){float x=getWidth()/2f,y=getHeight()/2f,dy=dp(opened[0]?-3:3);paint.setColor(MUTED);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setStrokeCap(Paint.Cap.ROUND);Path path=new Path();path.moveTo(x-dp(5),y-dy);path.lineTo(x,y+dy);path.lineTo(x+dp(5),y-dy);canvas.drawPath(path,paint);}};header.addView(chevron,new LinearLayout.LayoutParams(dp(32),dp(44)));card.addView(header,0);LinearLayout content=column();content.setVisibility(opened[0]?View.VISIBLE:View.GONE);card.addView(content);header.setContentDescription("Advanced settings");header.setStateDescription(opened[0]?"Expanded":"Collapsed");header.setFocusable(true);header.setOnClickListener(v->{opened[0]=!opened[0];prefs.edit().putBoolean("advancedExpanded",opened[0]).apply();content.setVisibility(opened[0]?View.VISIBLE:View.GONE);header.setStateDescription(opened[0]?"Expanded":"Collapsed");chevron.invalidate();});header.setAccessibilityDelegate(new View.AccessibilityDelegate(){@Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(host,info);info.setClassName(Button.class.getName());info.setCheckable(true);info.setChecked(opened[0]);}});return content;
  }
  void settings(){
-  LinearLayout c=card("Appearance","");LinearLayout row=new LinearLayout(this);Button color=control("Accent color · "+String.format(Locale.ROOT,"#%06X",accent&0xffffff),this::chooseAccent,true);Button mode=control(lightTheme?"Light mode":"Dark mode",()->dialogBuilder().setTitle("Appearance").setItems(new String[]{"Light","Dark"},(d,n)->{saveDraft();prefs.edit().putString("appearanceMode",n==0?"light":"dark").apply();recreate();}).show(),false);mode.setBackground(box(SURFACE,24));row.addView(color,new LinearLayout.LayoutParams(0,dp(44),1));LinearLayout.LayoutParams space=new LinearLayout.LayoutParams(0,dp(44),1);space.setMargins(dp(8),0,0,0);row.addView(mode,space);c.addView(row);c.addView(text("Choose your app accent and light or dark appearance. LED colors stay unchanged.",12,MUTED));
+  LinearLayout c=card("Appearance","");LinearLayout row=new LinearLayout(this);Button color=control("Accent color · "+String.format(Locale.ROOT,"#%06X",accent&0xffffff),this::chooseAccent,true);Button mode=control(lightTheme?"Light mode":"Dark mode",()->dialogBuilder().setTitle("Appearance").setItems(new String[]{"Light","Dark"},(d,n)->{saveDraft();prefs.edit().putString("appearanceMode",n==0?"light":"dark").apply();recreate();}).show(),true);row.addView(color,new LinearLayout.LayoutParams(0,dp(44),1));LinearLayout.LayoutParams space=new LinearLayout.LayoutParams(0,dp(44),1);space.setMargins(dp(8),0,0,0);row.addView(mode,space);c.addView(row);c.addView(text("Choose your app accent and light or dark appearance. LED colors stay unchanged.",12,MUTED));
   c=advancedGroup();
   advancedPair(c,"Rerun Guided Setup","Check your device and retain original recovery backups.",this::guidedSetup,"Device & recovery","Review compatibility and device checks.",()->{tab="Device";draw();});
   advancedPair(c,"Factory Restore Fan","Restore original fan settings. "+DeviceState.backupDate(backupSummary),()->task(this::restoreFanBackup),"Factory Restore LEDs","Restore original LED settings. "+DeviceState.backupDate(backupSummary),()->task(this::restoreLighting));
   advancedPair(c,"Fan control safety","Review safeguards or enable fan control.",this::fanWarning,null,null,null);
+  Switch extended=new Switch(this);
+  extended.setText("Extended fan speed range (10–100%)");
+  extended.setTextColor(TEXT);
+  extended.setTextSize(14);
+  extended.setMinHeight(dp(48));
+  extended.setSwitchPadding(dp(12));
+  extended.setContentDescription("Extended fan speed range");
+  tintSwitch(extended);
+  extended.setChecked(extendedFanRange());
+  c.addView(extended,new LinearLayout.LayoutParams(-1,-2));
+  c.addView(text("Off by default. Unlock experimental speeds after reading the warning. Temperature limits and automatic Smart fallback stay enabled. Turning this off returns an active custom fan session to Smart; saved profiles are retained.",12,MUTED));
+  final boolean[] changing={false};extended.setOnCheckedChangeListener((v,enabled)->{if(changing[0])return;if(busy){changing[0]=true;extended.setChecked(extendedFanRange());changing[0]=false;return;}if(enabled){changing[0]=true;extended.setChecked(false);changing[0]=false;dialogBuilder().setTitle("Extended fan speed range").setMessage("This unlocks requested fan output from 10–100%, beyond the standard 50–70% limits. Percent is a control request, not measured RPM.\n\nRunning outputs below 10% are blocked. Curves can still switch the fan off at their off-temperature points. Insufficient cooling can cause overheating, throttling, shutdown or device damage. Higher output may increase noise and power use. Brief Odin 2 checks do not verify long-term cooling or other devices.\n\nCurve temperatures remain 35–78°C. The 80°C sensor fallback, sensor-loss and app-heartbeat checks, minimum run time, and system-tile takeover stay enabled. They cannot guarantee protection.\n\nEnabling this option does not change the fan until you apply a profile.").setPositiveButton("Enable extended range",(d,w)->setExtendedFanRange(true)).setNegativeButton("Cancel",null).show();}else setExtendedFanRange(false);});
 
  }
+ boolean extendedFanRange(){return prefs.getBoolean("extendedFanRange",false);}
+ void setExtendedFanRange(boolean enabled){prefs.edit().putBoolean("extendedFanRange",enabled).apply();if(!enabled){if(FanService.running)startForegroundService(new Intent(this,FanService.class).setAction("stock").putExtra("mode",4));boolean reset;try{reset=CurvePoints.needsExtended(points,manual);}catch(Exception e){reset=true;}if(reset){points=CurvePoints.defaults();manual=55;kind="curve";selectedStock=-1;fanChoice="Custom curve";}}saveDraft();draw();}
  TextView aboutText(String value,int size,int color){TextView view=text(value,size,color);view.setPadding(0,0,0,0);return view;}
  void aboutGap(LinearLayout content,int height){content.addView(new View(this),new LinearLayout.LayoutParams(1,dp(height)));}
  void about(){
@@ -113,11 +143,13 @@ public final class MainActivity extends Activity {
   String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){}
   TextView release=aboutText("Version "+version,13,AppearanceColors.readable(accent,CARD));release.setGravity(Gravity.CENTER);content.addView(release,new LinearLayout.LayoutParams(-1,-2));aboutGap(content,8);
   TextView slogan=aboutText("Your system. Your way.",16,AppearanceColors.readable(accent,CARD));slogan.setGravity(Gravity.START);content.addView(slogan,new LinearLayout.LayoutParams(-1,-2));aboutGap(content,8);
-  content.addView(aboutText("Tune your cooling, choose your lighting, and keep recovery close at hand. Part of the Raven app family, alongside Raven Backup, Raven App Control and Raven Gamepad.",14,TEXT));aboutGap(content,8);
+  content.addView(aboutText("Tune your cooling, choose your lighting, and keep recovery close at hand.",14,TEXT));aboutGap(content,8);
   content.addView(aboutText("Build date: "+BuildInfo.BUILD_DATE+"\nCreator: Rsotbiemrptson",13,MUTED));aboutGap(content,8);
   content.addView(aboutText("Open source · GNU GPL v3 only",13,MUTED));
   TextView license=aboutText("License",14,AppearanceColors.readable(accent,CARD));license.setPaintFlags(license.getPaintFlags()|Paint.UNDERLINE_TEXT_FLAG);license.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);license.setMinHeight(dp(44));license.setFocusable(true);license.setOnClickListener(v->showLicense());content.addView(license,new LinearLayout.LayoutParams(-2,-2));
-  ScrollView scroll=new ScrollView(this);scroll.addView(content);dialogBuilder().setTitle("About").setView(scroll).setPositiveButton("Close",null).show();
+  AlertDialog popup=dialogBuilder().setTitle("About").setView(content).setPositiveButton("Close",null).show();
+  int width=Math.min(getResources().getDisplayMetrics().widthPixels-dp(40),dp(480));
+  popup.getWindow().setLayout(width,WindowManager.LayoutParams.WRAP_CONTENT);
  }
  void showLicense(){try(java.io.InputStream in=getAssets().open("LICENSE.txt")){java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] bytes=new byte[4096];int n;while((n=in.read(bytes))!=-1)out.write(bytes,0,n);dialogBuilder().setTitle("GNU GPL v3 only").setMessage(new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8)).setPositiveButton("Close",null).show();}catch(Exception e){message("License text could not be opened");}}
  String restoreFanBackup()throws Exception{if(FanService.running)startService(new Intent(this,FanService.class).setAction("stop"));return Root.run(this,"fan-recover");}
@@ -139,24 +171,87 @@ public final class MainActivity extends Activity {
  void guidedSetup(){if(busy)return;fanWarning();}
  void fanWarning(){
   if(busy)return;
-  dialogBuilder().setTitle("1 of 3 · Fan control safety").setMessage("Manipulating fan settings may cause your device to overheat and possibly cause damage. Only enable fan control if you understand this risk.\n\nFor custom profiles, Raven monitors the selected temperature sensor. At 80°C, sensor loss, a user switch or a missed app heartbeat, it requests stock Smart cooling. Custom speeds stay within the verified 50–70% range while running. Once running, the fan stays on for at least 20 seconds to avoid rapid cycling. These safeguards cannot guarantee protection.\n\nSelecting a mode in the system fan tile ends Raven's custom control. Skipping leaves fan control disabled; LEDs are still available.")
-   .setPositiveButton("Enable Fan Control",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",true).apply();runGuidedChecks();}).setNegativeButton("Skip",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",false).apply();if(FanService.running)startService(new Intent(this,FanService.class).setAction("stock").putExtra("mode",4));runGuidedChecks();}).show();
+  dialogBuilder().setTitle("1 of 3 · Fan control safety").setMessage("Manipulating fan settings may cause your device to overheat and possibly cause damage. Only enable fan control if you understand this risk.\n\nFor custom profiles, Raven monitors the selected temperature sensor. At 80°C, sensor loss, a user switch or a missed app heartbeat, it requests stock Smart cooling. Standard custom speeds stay within the tested 50–70% range while running. The experimental 10–100% option in Advanced requires a separate warning. Once running, the fan stays on for at least 20 seconds to avoid rapid cycling. These safeguards cannot guarantee protection.\n\nSelecting a mode in the system fan tile ends Raven's custom control. Skipping leaves fan control disabled; LEDs are still available.")
+   .setPositiveButton("Enable Fan Control",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",true).apply();setupFanNotifications();}).setNegativeButton("Skip",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",false).apply();if(FanService.running)startService(new Intent(this,FanService.class).setAction("stock").putExtra("mode",4));runGuidedChecks();}).show();
+ }
+ private static final int SETUP_FAN_NOTIFICATIONS=6;
+ private static final int SETUP_NOTIFICATION_SETTINGS=7;
+ private static final String FAN_NOTIFICATION_REASON="Custom fan profiles run in the background. Allow notifications so you can see the active session and tap Use Smart to return cooling to the system.";
+ private void setupFanNotifications(){
+  createFanNotificationChannel();
+  if(FanService.notificationsAvailable(this)){runGuidedChecks();return;}
+  dialogBuilder().setTitle("Notifications for custom fan control")
+   .setMessage(FAN_NOTIFICATION_REASON+" Stock fan modes and LEDs are available without this permission.")
+   .setPositiveButton("Enable notifications",(d,w)->{
+    if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+     requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},SETUP_FAN_NOTIFICATIONS);
+    }else openSetupNotificationSettings();
+   })
+   .setNegativeButton("Continue without",(d,w)->runGuidedChecks()).show();
+ }
+ private void createFanNotificationChannel(){
+  getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("fan","Fan control",NotificationManager.IMPORTANCE_LOW));
+ }
+ private void openSetupNotificationSettings(){
+  startActivityForResult(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+   .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName()),SETUP_NOTIFICATION_SETTINGS);
+ }
+ @Override protected void onActivityResult(int request,int result,Intent data){
+  super.onActivityResult(request,result,data);
+  if(request==SETUP_NOTIFICATION_SETTINGS)runGuidedChecks();
  }
  void runGuidedChecks(){
   if(busy)return;busy=true;AlertDialog progress=dialogBuilder().setTitle("2 of 3 · Checking your Odin").setMessage("Checking stock controls, reading sensors and retaining your original fan and LED recovery backups…").setCancelable(false).create();progress.show();
   io.execute(()->{String failure=null;try{readHardware();if(!checked)throw new Exception("No readable temperature sensors were found.");backupSummary=Root.run(this,"backup-create").substring(3);prefs.edit().putString("recoveryBackupSummary",backupSummary).putBoolean("setupCompleteV2",true).apply();}catch(Exception e){checked=false;failure=e.getMessage();}final String error=failure;runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;progress.dismiss();if(error!=null){report="Could not complete checks: "+error;dialogBuilder().setTitle("Checks need attention").setMessage(error).setPositiveButton("Try again",(d,w)->runGuidedChecks()).setNegativeButton("Close",null).show();return;}
-   dialogBuilder().setTitle("3 of 3 · Ready to use").setMessage(Build.MODEL+" checks passed.\n\n"+DeviceState.backupDate(backupSummary)+"\n\nOriginal backups are retained outside app storage, including after uninstall/reinstall. Setup never replaces them with an applied profile. Fan control is "+(prefs.getBoolean("fanControlEnabled",false)?"enabled":"disabled")+". Add Raven Fan and Raven LED from Android's quick-tile editor.")
+   dialogBuilder().setTitle("3 of 3 · Ready to use").setMessage(Build.MODEL+" checks passed.\n\n"+DeviceState.backupDate(backupSummary)+"\n\nOriginal backups are retained outside app storage, including after uninstall/reinstall. Setup never replaces them with an applied profile. Fan control is "+(prefs.getBoolean("fanControlEnabled",false)?(FanService.notificationsAvailable(this)?"enabled":"enabled for stock modes. Allow notifications to use custom profiles"):"disabled")+". Add Raven Fan and Raven LED from Android's quick-tile editor.")
     .setPositiveButton("Finish",(d,w)->{draw();openQuickProfile();}).show();
   });});
  }
- String fanStatus(){String status=FanService.status;return "Active: "+DeviceState.fan(this)+(FanService.running||status.startsWith("Could not")||status.startsWith("Stop could")?" · "+status:"");}
+ String fanStatus(String status){return "Active: "+DeviceState.fan(this)+(FanService.running||status.startsWith("Could not")||status.startsWith("Stop could")?" · "+status:"");}
+ // Read the active session's source, or resolve the same OEM source used at startup.
+ // Never read hardware on the UI thread or change fan settings for this display.
+ void refreshFanTemperature(){
+  if(!resumed||fanTemperatureView==null)return;
+  String controllerStatus=FanService.status;
+  session.setText(fanStatus(controllerStatus));
+  if(FanService.running){
+   java.util.regex.Matcher reading=java.util.regex.Pattern.compile("^([0-9]+\\u00b0C)").matcher(controllerStatus);
+   fanTemperatureView.setText(reading.find()?"Fan temperature: "+reading.group(1):"Fan temperature: Reading...");
+   return;
+  }
+  if(temperaturePending||io.isShutdown())return;
+  temperaturePending=true;
+  io.execute(()->{
+   String label="Fan temperature: Unavailable";
+   try{
+    String source=Root.run(this,"oem-sensor").substring(3).trim();
+    if(!FanService.validTemperatureSource(source))throw new IllegalArgumentException("Invalid source");
+    long value=Long.parseLong(Root.run(this,"fan-temperature "+source).substring(3).trim());
+    if(value<=0||value>250)throw new IllegalArgumentException("Invalid temperature");
+    label="Fan temperature: "+value+"\u00b0C";
+   }catch(Exception ignored){}
+   final String reading=label;
+   runOnUiThread(()->{temperaturePending=false;if(!resumed||isFinishing()||isDestroyed()||FanService.running)return;fanTemperature=reading;if(fanTemperatureView!=null)fanTemperatureView.setText(reading);});
+  });
+ }
  void fan(){
-  LinearLayout c=card("Cooling profile","");Spinner profilePicker=profileSelector(c,true);
-  session=text(fanStatus(),14,AppearanceColors.readable(accent,CARD));c.addView(session);
+  final boolean extended=extendedFanRange(),rangeLocked=!extended&&CurvePoints.needsExtended(points,manual);LinearLayout c=card("Cooling profile","");Spinner profilePicker=profileSelector(c,true);if(rangeLocked)c.addView(text("This profile needs Extended fan speed range in Settings → Advanced before editing or applying it.",12,MUTED));
+  LinearLayout fanReadings=new LinearLayout(this);fanReadings.setOrientation(LinearLayout.HORIZONTAL);fanReadings.setGravity(Gravity.TOP);c.addView(fanReadings);
+  fanTemperatureView=text(fanTemperature,14,AppearanceColors.readable(accent,CARD));fanReadings.addView(fanTemperatureView,new LinearLayout.LayoutParams(-2,-2));
+  session=text(fanStatus(FanService.status),14,AppearanceColors.readable(accent,CARD));LinearLayout.LayoutParams activeLayout=new LinearLayout.LayoutParams(0,-2,1);activeLayout.setMargins(dp(16),0,0,0);fanReadings.addView(session,activeLayout);refreshFanTemperature();
   TextView hint=text(selectedStock>=0?"Read-only stock reference. Drag to create a custom curve and save it under a new name (50–70% while running).":"Drag points to set temperature and fan speed. Changes stay in the draft until applied.",12,MUTED);
-  FanGraph graph=new FanGraph(this,points,accent,TEXT,lightTheme?0xffd5d8e0:0xff48505c);if(Build.MODEL.equals("Odin2")&&selectedStock>0){int[][] reference=selectedStock==1?new int[][]{{35,10},{45,10},{50,10},{60,10},{70,10},{78,10}}:selectedStock==5?new int[][]{{35,50},{45,50},{50,50},{60,50},{70,50},{78,50}}:new int[][]{{35,16},{40,16},{50,23},{60,31},{70,38},{78,44}};graph.reference(reference);}c.addView(graph,new LinearLayout.LayoutParams(-1,dp(getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE?170:220)));graph.active(!kind.equals("manual"));graph.changed=value->{points=value;if(selectedStock>=0||!savedNames(true).contains(fanChoice)){fanChoice="Custom curve";profilePicker.setSelection(0);}selectedStock=-1;hint.setText("Custom curve · changes are drafts until applied.");saveDraft();};
-  CheckBox manualMode=new CheckBox(this);manualMode.setText("Manual speed");manualMode.setTextColor(TEXT);manualMode.setButtonTintList(android.content.res.ColorStateList.valueOf(AppearanceColors.readable(accent,CARD)));manualMode.setChecked(kind.equals("manual"));c.addView(manualMode);
-  LinearLayout manualControls=column();slider(manualControls,"Fan speed %",50,70,manual,n->{manual=n;selectedStock=-1;});c.addView(manualControls);enableChildren(manualControls,kind.equals("manual"));manualControls.setAlpha(kind.equals("manual")?1:.35f);
+  FanGraph graph=new FanGraph(this,points,accent,TEXT,lightTheme?0xffd5d8e0:0xff48505c,extended);if(Build.MODEL.equals("Odin2")&&selectedStock>0){int[][] reference=selectedStock==1?new int[][]{{35,10},{45,10},{50,10},{60,10},{70,10},{78,10}}:selectedStock==5?new int[][]{{35,50},{45,50},{50,50},{60,50},{70,50},{78,50}}:new int[][]{{35,16},{40,16},{50,23},{60,31},{70,38},{78,44}};graph.reference(reference);}c.addView(graph,new LinearLayout.LayoutParams(-1,dp(getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE?170:220)));graph.active(!kind.equals("manual")&&!rangeLocked);graph.changed=value->{points=value;if(selectedStock>=0||!savedNames(true).contains(fanChoice)){fanChoice="Custom curve";profilePicker.setSelection(0);}selectedStock=-1;hint.setText("Custom curve · changes are drafts until applied.");saveDraft();};
+  Switch manualMode=new Switch(this);
+  manualMode.setText("Manual speed");
+  manualMode.setTextColor(TEXT);
+  manualMode.setTextSize(14);
+  manualMode.setMinHeight(dp(48));
+  manualMode.setSwitchPadding(dp(12));
+  tintSwitch(manualMode);
+  manualMode.setChecked(kind.equals("manual"));
+  manualMode.setEnabled(!rangeLocked);
+  c.addView(manualMode,new LinearLayout.LayoutParams(-1,-2));
+  LinearLayout manualControls=column();slider(manualControls,"Fan speed %",extended||rangeLocked?10:50,extended||rangeLocked?100:70,manual,n->{manual=n;selectedStock=-1;});c.addView(manualControls);enableChildren(manualControls,kind.equals("manual")&&!rangeLocked);manualControls.setAlpha(kind.equals("manual")&&!rangeLocked?1:.35f);
   manualMode.setOnCheckedChangeListener((v,enabled)->{kind=enabled?"manual":"curve";if(selectedStock>=0||!savedNames(true).contains(fanChoice)){fanChoice="Custom curve";profilePicker.setSelection(0);}selectedStock=-1;graph.setCurve(points);hint.setText("Custom curve · changes are drafts until applied.");graph.active(!enabled);enableChildren(manualControls,enabled);manualControls.setAlpha(enabled?1:.35f);saveDraft();});
   profileCard(true);action("Apply profile",this::applyFan,true);action("Use Smart",()->applyStock(4),false);
  }
@@ -165,12 +260,20 @@ public final class MainActivity extends Activity {
  void applyStock(int mode){if(!prefs.getBoolean("fanControlEnabled",false)){message("Enable Fan Control in Rerun Guided Setup before applying a fan mode.");return;}startForegroundService(new Intent(this,FanService.class).setAction("stock").putExtra("mode",mode));}
  void startFan(){
   try{validate();if(!prefs.getBoolean("fanControlEnabled",false))throw new IllegalArgumentException("Enable Fan Control in Rerun Guided Setup first.");if(!checked)throw new IllegalArgumentException("Rerun Guided Setup in Settings first.");if(zone.isEmpty())throw new IllegalArgumentException("The OEM temperature source is unavailable. Rerun Guided Setup.");}catch(Exception e){message(e.getMessage());return;}
-  NotificationManager nm=getSystemService(NotificationManager.class);nm.createNotificationChannel(new NotificationChannel("fan","Fan control",NotificationManager.IMPORTANCE_LOW));
+  createFanNotificationChannel();
   if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},5);return;}
   if(!FanService.notificationsAvailable(this)){dialogBuilder().setMessage("Enable fan control notifications so the current profile and Use Smart action stay visible.").setPositiveButton("Notification settings",(d,w)->startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName()))).setNegativeButton("Cancel",null).show();return;}
-  saveDraft();startForegroundService(new Intent(this,FanService.class).setAction("apply").putExtra("kind",kind).putExtra("zone",Integer.parseInt(zone)).putExtra("points",points).putExtra("manual",manual).putExtra("profileName",fanChoice));
+  saveDraft();startForegroundService(new Intent(this,FanService.class).setAction("apply").putExtra("kind",kind).putExtra("points",points).putExtra("manual",manual).putExtra("profileName",fanChoice));
  }
- @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==5)message(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED?"Notifications enabled. Apply the fan profile when ready.":"Enable notifications to keep fan controls visible.");}
+ @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==SETUP_FAN_NOTIFICATIONS){
+   if(FanService.notificationsAvailable(this)){runGuidedChecks();return;}
+   dialogBuilder().setTitle("Custom fan notifications are off")
+    .setMessage(FAN_NOTIFICATION_REASON)
+    .setPositiveButton("Notification settings",(d,w)->openSetupNotificationSettings())
+    .setNegativeButton("Continue without",(d,w)->runGuidedChecks()).show();
+   return;
+  }
+  if(request==5)message(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED?"Notifications enabled. Apply the fan profile when ready.":"Enable notifications to keep fan controls visible.");}
  String lightColor(int n){return n==0?left:n==1?right:n==2?sideLeft:sideRight;}
  void lightColor(int n,String color){if(n==0)left=color;else if(n==1)right=color;else if(n==2)sideLeft=color;else sideRight=color;}
  void lights(){
@@ -204,9 +307,25 @@ public final class MainActivity extends Activity {
   final boolean[] updating={false};ledWheel.changed=color->{updating[0]=true;rgb.setText(String.format(Locale.ROOT,"#%06X",color&0xffffff));rgb.setError(null);swatch.setBackground(box(color,16));updating[0]=false;};
   rgb.addTextChangedListener(new android.text.TextWatcher(){public void beforeTextChanged(CharSequence v,int a,int n,int f){}public void onTextChanged(CharSequence v,int a,int before,int count){if(!updating[0]&&v.toString().matches("#[A-Fa-f0-9]{6}")){ledWheel.setColor(Color.parseColor(v.toString()));rgb.setSelection(rgb.length());}}public void afterTextChanged(android.text.Editable e){}});
   dimmer.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int value,boolean user){if(user){level[0]=value;brightnessCaption.setText("Brightness: "+value+"%");}}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});ledWheel.setColor(initial);
-  LinearLayout footer=new LinearLayout(this);footer.setPadding(0,dp(8),0,0);Button applyAll=control("Apply to all lights",()->{},false),defaults=control("Default",()->ledWheel.setColor(DEFAULT_ACCENT),false),cancel=control("Cancel",()->{},false),save=control(Build.MODEL.equals("Odin2")?"Save":"Save draft",()->{},true);
-  Button[] footerButtons={applyAll,defaults,cancel,save};
-  for(int n=0;n<4;n++){GradientDrawable outline=box(n==3?accent:SURFACE,24);outline.setStroke(dp(2),AppearanceColors.readable(accent,SURFACE));footerButtons[n].setBackground(outline);footerButtons[n].setTextColor(n==3?(AppearanceColors.ink(accent)):AppearanceColors.readable(accent,SURFACE));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),n==0?1.8f:1f);if(n>0)lp.setMargins(dp(6),0,0,0);footer.addView(footerButtons[n],lp);}editor.addView(footer);
+  LinearLayout footer=new LinearLayout(this);
+  footer.setPadding(0,dp(8),0,0);
+  Button cancel=control("Cancel",()->{},false);
+  Button defaults=control("Default",()->ledWheel.setColor(DEFAULT_ACCENT),false);
+  Button save=control("Save",()->{},false);
+  Button applyAll=control("Apply to all lights",()->{},false);
+  Button[] footerButtons={cancel,defaults,save,applyAll};
+  int footerAccent=AppearanceColors.readable(accent,CARD);
+  for(Button button:footerButtons){
+   GradientDrawable outline=box(CARD,24);
+   outline.setStroke(dp(2),footerAccent);
+   button.setBackground(outline);
+   button.setTextColor(footerAccent);
+   button.setPadding(dp(6),dp(4),dp(6),dp(4));
+   LinearLayout.LayoutParams size=new LinearLayout.LayoutParams(0,dp(44),button==applyAll?1.8f:1f);
+   if(button!=cancel)size.setMarginStart(dp(6));
+   footer.addView(button,size);
+  }
+  editor.addView(footer);
   ScrollView scroll=new ScrollView(this);scroll.addView(editor);int height=Math.min(dp(460),(int)(getResources().getDisplayMetrics().heightPixels*.55f));scroll.setLayoutParams(new android.view.ViewGroup.LayoutParams(-1,height));
   AlertDialog dialog=dialogBuilder().setView(scroll).create();dialog.setOnDismissListener(d->editingLight=false);
   dialog.setOnShowListener(d->{
@@ -220,7 +339,7 @@ public final class MainActivity extends Activity {
     busy=true;dialog.setCancelable(false);for(Button button:footerButtons)button.setEnabled(false);save.setText("Saving…");
     final boolean analogBefore=ProfileActions.groupOn(this,true),sideBefore=ProfileActions.groupOn(this,false);
     final String request=every?lightingRequest(new String[]{hex,hex,hex,hex},new int[]{appliedLevel,appliedLevel,appliedLevel,appliedLevel},"on"):"light-one "+editing+" "+hex+" "+appliedLevel+(DeviceState.led(this).equals("System LEDs")?" system":"");
-    io.execute(()->{String error=null;try{Root.run(this,request);if(every)DeviceState.ownLED(this,"Custom LEDs");else DeviceState.ownSingleLED(this,editing,analogBefore,sideBefore);lastLED=DeviceState.ledSignature(this);}catch(Exception e){error=e.getMessage();}final String failure=error;runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;if(failure==null){lightingStatus=every?"Lighting colors applied":labels[editing]+" color applied";commit.run();}else{dialog.setCancelable(true);for(Button button:footerButtons)button.setEnabled(true);save.setText(Build.MODEL.equals("Odin2")?"Save":"Save draft");rgb.setError(failure);}});});
+    io.execute(()->{String error=null;try{Root.run(this,request);if(every)DeviceState.ownLED(this,"Custom LEDs");else DeviceState.ownSingleLED(this,editing,analogBefore,sideBefore);lastLED=DeviceState.ledSignature(this);}catch(Exception e){error=e.getMessage();}final String failure=error;runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;if(failure==null){lightingStatus=every?"Lighting colors applied":labels[editing]+" color applied";commit.run();}else{dialog.setCancelable(true);for(Button button:footerButtons)button.setEnabled(true);save.setText("Save");rgb.setError(failure);}});});
    };
    save.setOnClickListener(v->apply.accept(false));applyAll.setOnClickListener(v->apply.accept(true));
   });
@@ -238,11 +357,11 @@ public final class MainActivity extends Activity {
  EditText colorField(LinearLayout c,String label,String value){c.addView(text(label,15,TEXT));EditText e=new EditText(this);e.setSingleLine();e.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE|android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);e.setTextColor(TEXT);e.setText(value);e.setSelectAllOnFocus(true);e.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS);e.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});e.setContentDescription(label);c.addView(e);return e;}
  ArrayList<String> savedNames(boolean fan){ArrayList<String> names=new ArrayList<>();String prefix=fan?"fan:":"led:";for(String key:prefs.getAll().keySet())if(key.startsWith(prefix))names.add(key.substring(prefix.length()));Collections.sort(names,String.CASE_INSENSITIVE_ORDER);return names;}
  ArrayList<String> choices(boolean fan){ArrayList<String> names=new ArrayList<>();if(fan)Collections.addAll(names,"Custom curve","Quiet · stock","Smart · stock","Sport · stock");else names.add("Current LEDs");names.addAll(savedNames(fan));return names;}
- Spinner profileSelector(LinearLayout c,boolean fan){ArrayList<String> names=choices(fan);Spinner picker=new Spinner(this){final Paint arrow=new Paint(3);@Override protected void dispatchDraw(Canvas canvas){super.dispatchDraw(canvas);arrow.setColor(MUTED);float x=getLayoutDirection()==View.LAYOUT_DIRECTION_RTL?dp(20):getWidth()-dp(20),y=getHeight()/2f;Path path=new Path();path.moveTo(x-dp(5),y-dp(3));path.lineTo(x+dp(5),y-dp(3));path.lineTo(x,y+dp(3));path.close();canvas.drawPath(path,arrow);}};picker.setContentDescription(fan?"Fan profile":"LED profile");GradientDrawable outline=box(SURFACE,12);outline.setStroke(dp(1),MUTED);picker.setBackground(outline);picker.setPaddingRelative(dp(12),0,dp(36),0);String[] shown=new String[names.size()];for(int n=0;n<shown.length;n++)shown[n]=fan?ProfileActions.displayName(names.get(n)):names.get(n);picker.setAdapter(adapter(shown));String selection=fan?fanChoice:ledChoice;picker.setSelection(Math.max(0,names.indexOf(selection)));c.addView(picker,new LinearLayout.LayoutParams(-1,dp(48)));picker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int index,long id){String name=names.get(index);if(name.equals(fan?fanChoice:ledChoice))return;if(!fan&&(busy||LedProfileService.isApplying())){picker.setSelection(Math.max(0,names.indexOf(ledChoice)));return;}try{selectProfile(fan,name);saveDraft();draw();if(!fan&&!name.equals("Current LEDs"))turnOnLEDs();}catch(Exception e){message("Profile could not be loaded: "+e.getMessage());}}});return picker;}
- void selectProfile(boolean fan,String name)throws Exception{if(fan){fanChoice=name;selectedStock=name.equals("Quiet · stock")?1:name.equals("Smart · stock")?4:name.equals("Sport · stock")?5:-1;if(selectedStock>=0){kind="curve";return;}if(name.equals("Custom curve"))return;loadFan(new JSONObject(prefs.getString("fan:"+name,"{}")));}else{ledChoice=name;ledEditingName=name.equals("Current LEDs")?"":name;if(!name.equals("Current LEDs"))loadLED(new JSONObject(prefs.getString("led:"+name,"{}")));}}
+ Spinner profileSelector(LinearLayout c,boolean fan){ArrayList<String> names=choices(fan);Spinner picker=new Spinner(this){final Paint arrow=new Paint(3);@Override protected void dispatchDraw(Canvas canvas){super.dispatchDraw(canvas);arrow.setColor(MUTED);float x=getLayoutDirection()==View.LAYOUT_DIRECTION_RTL?dp(20):getWidth()-dp(20),y=getHeight()/2f;Path path=new Path();path.moveTo(x-dp(5),y-dp(3));path.lineTo(x+dp(5),y-dp(3));path.lineTo(x,y+dp(3));path.close();canvas.drawPath(path,arrow);}};picker.setContentDescription(fan?"Fan profile":"LED profile");GradientDrawable outline=box(SURFACE,12);outline.setStroke(dp(1),MUTED);picker.setBackground(outline);picker.setPaddingRelative(dp(12),0,dp(36),0);String[] shown=new String[names.size()];for(int n=0;n<shown.length;n++)shown[n]=fan?ProfileActions.displayName(names.get(n)):names.get(n);picker.setAdapter(adapter(shown));String selection=fan?fanChoice:ledChoice;picker.setSelection(Math.max(0,names.indexOf(selection)));c.addView(picker,new LinearLayout.LayoutParams(-1,dp(48)));picker.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int index,long id){String name=names.get(index);if(name.equals(fan?fanChoice:ledChoice))return;if(!fan&&(busy||LedProfileService.isApplying())){picker.setSelection(Math.max(0,names.indexOf(ledChoice)));return;}try{selectProfile(fan,name);saveDraft();draw();if(!fan&&!name.equals("Current LEDs"))turnOnLEDs();}catch(Exception e){picker.setSelection(Math.max(0,names.indexOf(fan?fanChoice:ledChoice)));message("Profile could not be loaded: "+e.getMessage());}}});return picker;}
+ void selectProfile(boolean fan,String name)throws Exception{if(fan){int stock=name.equals("Quiet · stock")?1:name.equals("Smart · stock")?4:name.equals("Sport · stock")?5:-1;if(stock>=0){fanChoice=name;selectedStock=stock;kind="curve";return;}if(name.equals("Custom curve")){fanChoice=name;selectedStock=-1;return;}loadFan(new JSONObject(prefs.getString("fan:"+name,"{}")));fanChoice=name;}else{ledChoice=name;ledEditingName=name.equals("Current LEDs")?"":name;if(!name.equals("Current LEDs"))loadLED(new JSONObject(prefs.getString("led:"+name,"{}")));}}
  JSONObject fanJSON()throws JSONException{return new JSONObject().put("points",points).put("kind",kind).put("manual",manual).put("zone",zone).put("stockMode",selectedStock);}
  JSONObject ledJSON()throws JSONException{return new JSONObject().put("left",left).put("right",right).put("sideLeft",sideLeft).put("sideRight",sideRight).put("sideLights",sideLights).put("lightingZones",1).put("lightBrightness",new JSONArray().put(lightBrightness[0]).put(lightBrightness[1]).put(lightBrightness[2]).put(lightBrightness[3]));}
- void loadFan(JSONObject j){String candidate=j.optString("points",CurvePoints.defaults());CurvePoints.parse(candidate);points=candidate;kind=j.optString("kind","curve").equals("manual")?"manual":"curve";manual=Math.max(50,Math.min(70,j.optInt("manual",55)));zone=prefs.getString("oemZone",zone);int stock=j.optInt("stockMode",-1);selectedStock=stock==0||stock==1||stock==4||stock==5?stock:-1;}
+ void loadFan(JSONObject j){String candidate=j.optString("points",CurvePoints.defaults());CurvePoints.parse(candidate,true);int requested=FanCurve.manual(j.optInt("manual",55),true);String requestedKind=j.optString("kind","curve").equals("manual")?"manual":"curve";int stock=j.optInt("stockMode",-1);points=candidate;kind=requestedKind;manual=requested;zone=prefs.getString("oemZone",zone);selectedStock=stock==0||stock==1||stock==4||stock==5?stock:-1;}
  void loadLED(JSONObject j){left=j.optString("left","FF8000");right=j.optString("right",left);sideLeft=j.optString("sideLeft",left);sideRight=j.optString("sideRight",right);sideLights=j.optString("sideLights","keep");if(!sideLights.equals("on")&&!sideLights.equals("off"))sideLights="keep";JSONArray levels=j.optJSONArray("lightBrightness");for(int n=0;n<4;n++)lightBrightness[n]=Math.max(0,Math.min(100,levels==null?j.optInt("brightness",50):levels.optInt(n,50)));}
  void profileCard(boolean fan){LinearLayout c=card("Save profile","");EditText name=new EditText(this);name.setSingleLine();name.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_DONE|android.view.inputmethod.EditorInfo.IME_FLAG_NO_EXTRACT_UI);name.setTextColor(TEXT);name.setHintTextColor(MUTED);name.setHint(fan?"Fan profile name":"LED profile name");name.setContentDescription(fan?"Fan profile name":"LED profile name");name.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(40)});String current=fan?fanChoice:ledChoice;if(savedNames(fan).contains(current))name.setText(current);else if(!fan&&savedNames(false).contains(ledEditingName))name.setText(ledEditingName);c.addView(name);
   button(c,fan?"Save & apply fan profile":"Save LED profile",()->{try{String key=name.getText().toString().trim();if(fan&&key.matches("(?i)(quiet|smart|sport)"))throw new IllegalArgumentException("Stock profiles are read-only. Choose a different name for your custom profile.");if(key.isEmpty())throw new IllegalArgumentException("Enter a profile name");if(key.equals("Custom curve")||key.equals("Current LEDs")||key.endsWith(" · stock"))throw new IllegalArgumentException("Choose a different profile name");if(fan){validate();prefs.edit().putString("fan:"+key,fanJSON().toString()).apply();fanChoice=key;}else{for(int n=0;n<4;n++)if(!lightColor(n).matches("[A-Fa-f0-9]{6}"))throw new IllegalArgumentException("Use valid LED colors");prefs.edit().putString("led:"+key,ledJSON().toString()).apply();ledChoice=key;ledEditingName=key;}saveDraft();draw();DeviceState.refreshTiles(this);if(fan)applyFan();else lightingStatus="LED profile saved";}catch(Exception e){message(e.getMessage());}},true);
@@ -266,13 +385,13 @@ public final class MainActivity extends Activity {
  void checkHardware(){task(this::readHardware);}
  String readHardware()throws Exception{
   checked=false;String probe=Root.run(this,"probe");sidesOn=probe.contains("side_left=1 side_right=1");
-  String oem=Root.run(this,"oem-sensor").substring(3).trim();if(!oem.matches("[0-9]{1,3}"))throw new Exception("OEM sensor unavailable");zone=oem;prefs.edit().putString("oemZone",zone).apply();
+  String oem=Root.run(this,"oem-sensor").substring(3).trim();if(!FanService.validTemperatureSource(oem))throw new Exception("OEM sensor unavailable");zone=oem;prefs.edit().putString("oemZone",zone).apply();
   String sensorText=Root.read("for z in /sys/class/thermal/thermal_zone*; do echo ${z##*zone}:$(cat $z/type):$(cat $z/temp 2>/dev/null); done");
   ArrayList<String> ids=new ArrayList<>(),names=new ArrayList<>();
   for(String line:sensorText.split("\n")){String[] p=line.trim().split(":",3);if(p.length!=3||!p[0].matches("[0-9]{1,3}"))continue;
    try{double n=Double.parseDouble(p[2]);if(n>=1000)n/=1000;if(n>0&&n<100){ids.add(p[0]);names.add(sensorLabel(p[1])+" · "+String.format(Locale.US,"%.1f°C",n)+" · zone "+p[0]);}}catch(Exception ignored){}
   }
-  synchronized(this){sensors=ids;sensorNames=names;checked=!ids.isEmpty();report=probe+"\n\n"+ids.size()+" readable temperature sensors. OEM temperature source: thermal_zone"+zone+". Checks do not change your fan or lights.";}
+  synchronized(this){sensors=ids;sensorNames=names;checked=!ids.isEmpty();report=probe+"\n\n"+ids.size()+" readable temperature sensors. Fan temperature source: "+("cpu-average".equals(zone)?"CPU thermal sensor average":"thermal_zone"+zone)+". Checks do not change your fan or lights.";}
   return report;
  }
  String sensorLabel(String name){String lower=name.toLowerCase(Locale.ROOT);if(lower.contains("pwr"))return "Device temperature ("+name+")";if(lower.contains("cpu")||lower.contains("tsens"))return "Processor sensor ("+name+")";if(lower.contains("battery"))return "Battery sensor";return name;}
@@ -281,9 +400,9 @@ public final class MainActivity extends Activity {
  void task(Work action){if(busy)return;busy=true;AlertDialog progress=dialogBuilder().setMessage("Working…").setCancelable(false).create();progress.show();io.execute(()->{String s;try{s=action.run();}catch(Exception e){s="Could not complete: "+e.getMessage();}final String result=DeviceState.backupDate(s);runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;progress.dismiss();message(result);if(lightingStatusView!=null)lightingStatusView.setText(lightingStatus);if(tab.equals("Device")){if(!checked)report=result;draw();}});});}
  void message(String s){dialogBuilder().setMessage(DeviceState.backupDate(s)).setPositiveButton("OK",null).show();}
  android.widget.ArrayAdapter<String> adapter(String[] items){android.widget.ArrayAdapter<String> a=new android.widget.ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,items);return a;}
- void validate(){CurvePoints.parse(points);FanCurve.manual(manual);}
+ void validate(){if(!extendedFanRange()&&CurvePoints.needsExtended(points,manual))throw new IllegalArgumentException("Enable Extended fan speed range in Settings → Advanced to apply this profile.");CurvePoints.parse(points,extendedFanRange());FanCurve.manual(manual,extendedFanRange());}
  JSONObject json()throws JSONException{return new JSONObject().put("points",points).put("stockMode",selectedStock).put("fanChoice",fanChoice).put("ledChoice",ledChoice).put("ledEditingName",ledEditingName).put("off",off).put("on",on).put("full",full).put("low",low).put("high",high).put("manual",manual).put("brightness",lightBrightness[0]).put("lightBrightness",new JSONArray().put(lightBrightness[0]).put(lightBrightness[1]).put(lightBrightness[2]).put(lightBrightness[3])).put("left",left).put("right",right).put("kind",kind).put("zone",zone).put("sideLights",sideLights).put("lightingZones",1).put("sideLeft",sideLeft).put("sideRight",sideRight);}
- void load(JSONObject j){points=j.optString("points",legacyPoints(j));try{CurvePoints.parse(points);}catch(Exception ignored){points=CurvePoints.defaults();}selectedStock=j.optInt("stockMode",-1);fanChoice=j.optString("fanChoice","Custom curve");ledChoice=j.optString("ledChoice","Current LEDs");ledEditingName=j.optString("ledEditingName","");off=j.optInt("off",45);on=j.optInt("on",50);full=j.optInt("full",75);low=j.optInt("low",50);high=j.optInt("high",70);manual=j.optInt("manual",55);brightness=j.optInt("brightness",50);left=j.optString("left","FF8000");right=j.optString("right","FF8000");kind=j.optString("kind","curve");zone=j.optString("zone","");sideLights=j.optString("sideLights","keep");if(!sideLights.equals("on")&&!sideLights.equals("off"))sideLights="keep";if(j.optInt("lightingZones",0)==0&&Build.MODEL.equals("Odin2"))right=left;sideLeft=j.optString("sideLeft",left);sideRight=j.optString("sideRight",right);JSONArray levels=j.optJSONArray("lightBrightness");for(int n=0;n<4;n++)lightBrightness[n]=Math.max(0,Math.min(100,levels==null?brightness:levels.optInt(n,brightness)));normalizeLEDChoice();}
+ void load(JSONObject j){points=j.optString("points",legacyPoints(j));try{CurvePoints.parse(points,true);}catch(Exception ignored){points=CurvePoints.defaults();}selectedStock=j.optInt("stockMode",-1);fanChoice=j.optString("fanChoice","Custom curve");ledChoice=j.optString("ledChoice","Current LEDs");ledEditingName=j.optString("ledEditingName","");off=j.optInt("off",45);on=j.optInt("on",50);full=j.optInt("full",75);low=j.optInt("low",50);high=j.optInt("high",70);manual=j.optInt("manual",55);try{FanCurve.manual(manual,true);}catch(Exception e){manual=55;}brightness=j.optInt("brightness",50);left=j.optString("left","FF8000");right=j.optString("right","FF8000");kind=j.optString("kind","curve");zone=j.optString("zone","");sideLights=j.optString("sideLights","keep");if(!sideLights.equals("on")&&!sideLights.equals("off"))sideLights="keep";if(j.optInt("lightingZones",0)==0&&Build.MODEL.equals("Odin2"))right=left;sideLeft=j.optString("sideLeft",left);sideRight=j.optString("sideRight",right);JSONArray levels=j.optJSONArray("lightBrightness");for(int n=0;n<4;n++)lightBrightness[n]=Math.max(0,Math.min(100,levels==null?brightness:levels.optInt(n,brightness)));normalizeLEDChoice();}
  void saveDraft(){try{prefs.edit().putString("draft",json().toString()).apply();}catch(Exception ignored){}}
  final class LEDTarget extends View {
   final Paint paint=new Paint(3);final int target;final String label;

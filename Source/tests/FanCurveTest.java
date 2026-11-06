@@ -17,6 +17,9 @@ public final class FanCurveTest {
   invalid(()->FanCurve.validate(45,50,85,50,70));
   invalid(()->FanCurve.validate(45,50,75,70,50));
   invalid(()->FanCurve.manual(0));invalid(()->FanCurve.manual(71));
+  for(int value=10;value<=100;value++)expect(FanCurve.manual(value,true),value);
+  for(int value=0;value<10;value++){final int bad=value;invalid(()->FanCurve.manual(bad,true));}
+  invalid(()->FanCurve.manual(-1,true));invalid(()->FanCurve.manual(101,true));
   System.out.println("PASS fan policy: thresholds, hysteresis, interpolation, fallback and validation");
  }
 }

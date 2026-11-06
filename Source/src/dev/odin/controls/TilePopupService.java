@@ -3,7 +3,8 @@ import android.app.*;import android.content.*;import android.os.*;import org.jso
 /** Normal-app action dispatcher. Privileged window only renders and sends requests. */
 public final class TilePopupService extends Service {
  static Runnable fallback;private final Handler handler=new Handler(Looper.getMainLooper());private File folder;private boolean fan,ready,failureHandled;private volatile boolean stopping;private volatile int rootPid;private long offset,started,lastProbe;private String last="";private final java.util.concurrent.ExecutorService io=java.util.concurrent.Executors.newSingleThreadExecutor();
- static boolean supported(String model,int sdk){return (model.equals("Odin2")&&sdk==33)||(model.equals("Odin3")&&sdk==35);}
+ // Odin 3 firmware 187 rejects window sessions from the standalone renderer.
+ static boolean supported(String model,int sdk){return model.equals("Odin2")&&sdk==33;}
  static void open(Context c,boolean fan,Runnable standard){fallback=standard;try{c.startForegroundService(new Intent(c,TilePopupService.class).putExtra("fan",fan));}catch(Exception e){android.util.Log.w("RavenPopup","Chooser service unavailable",e);fallback=null;standard.run();}}
  @Override public void onCreate(){super.onCreate();getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("tile-popup","Profile chooser",NotificationManager.IMPORTANCE_LOW));}
  @Override public int onStartCommand(Intent intent,int flags,int id){
