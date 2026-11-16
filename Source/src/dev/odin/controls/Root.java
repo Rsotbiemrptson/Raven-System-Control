@@ -23,16 +23,21 @@ final class Root {
  static synchronized File helper(Context c)throws Exception {
   File dir=c.getExternalFilesDir(null);
   if(dir==null)throw new IOException("App storage unavailable");
-  File file=new File(dir,"hardware.sh"),temp=new File(dir,"hardware.tmp");
-  try(InputStream in=c.getAssets().open("hardware.sh");OutputStream out=new FileOutputStream(temp)){
-   byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
+  for(String name:new String[]{"performance-guard.sh","performance.sh","hardware.sh"}){
+   File file=new File(dir,name),temp=new File(dir,name+".tmp");
+   try(InputStream in=c.getAssets().open(name);OutputStream out=new FileOutputStream(temp)){
+    byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
+   }
+   if(!temp.renameTo(file))throw new IOException("Could not stage hardware helper");
   }
-  if(!temp.renameTo(file))throw new IOException("Could not stage hardware helper");
-  return file;
+  return new File(dir,"hardware.sh");
  }
  static String run(Context c,String args)throws Exception {
   File h=helper(c);
-  String result=call("sh "+q(h.getPath())+" "+args);
+  String command="sh "+q(h.getPath())+" "+args;
+  // The OEM command bridge returns only one stdout line. Encode the structured
+  // performance readout through the existing read path to retain every field.
+  String result=args.equals("performance-status")?read(command):call(command);
   if(!result.startsWith("OK"))throw new IOException(result.isEmpty()?"No helper response; privileged access may be restricted":result);
   return result;
  }

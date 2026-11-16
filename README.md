@@ -1,18 +1,26 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.29" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.49-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.29** · Package: `dev.odin.controls` · Version code: `54` · License: **GPL-3.0-only**
+**Current release: 0.2.49-preview** · Package: `dev.odin.controls` · Version code: `74` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.29/Raven-System-Control-0.2.29.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.29)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.49-preview/Raven-System-Control-0.2.49-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.49-preview)
 
-**Hardware tested:** Odin 2 firmware 400 and Odin 3 firmware 1.0.0.187.
+**Preview release:** CPU/GPU tuning and Game Assistant integration remain in preview.
+
+**Hardware tested:** Odin 2 firmware 400 and Odin 3 firmware 1.0.0.187; the current CPU/GPU, fan and recovery changes were tested on Raven Odin 3 firmware 1.0.0.189 r2.
 
 ## Features
+
+- Performance tab on compatible Odin 3 devices: CPU-cluster and GPU minimum/maximum sliders with supported frequency steps, three protected stock modes and separate custom profiles. Stock settings can be edited as drafts but must be saved under a custom name.
+- Custom performance profiles use a foreground safety monitor and independent watchdog. At 78°C, invalid sensors or monitoring loss, recovery lowers ceilings to conservative limits; stock restoration after recovery requires valid temperatures below 60°C. Platform thermal protections remain enabled.
+- Odin 3 compatibility uses live platform, frequency-table and control-interface checks instead of a firmware-number whitelist. After an update, Guided Setup verifies the existing original recovery backup without replacing it with an active custom profile.
+- Odin 3 LED editing previews color and brightness live, and saved profiles can enable either stick ring independently. Raven tile subtitles observe stock settings changes without waiting for hardware reads before opening.
+- A restricted Game Assistant bridge exposes saved fan, LED and CPU profiles to compatible system Game Assistant builds. It reuses guarded application paths; support depends on the installed Game Assistant.
 
 - Fan profile selector with protected OEM Quiet, Smart and Sport references, displayed without stock suffixes; save custom profiles separately without overwriting the stock names.
 - Editable temperature-curve graph and optional manual speed. Standard custom operation requests off or 50–70% PWM. An optional extended range allows 10–100% while running and retains the fan safeguards. The live temperature uses the controller’s reading during a custom session. Odin 2 follows OEM sensor discovery and Odin 3 uses the CPU thermal sensor average.
@@ -30,7 +38,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 | Device | Accepted software | Status |
 | --- | --- | --- |
 | Odin 2 (`Odin2`) | Android 13 / API 33, firmware 400 | Live fan, four-zone LED, profile, recovery and tile checks performed. Physical colors and independent brightness were also confirmed by the owner during development. |
-| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | Firmware 1.0.0.187 tested for custom cooling, Smart handoff, two-ring LED profiles, standby and Quick Settings. |
+| Odin 3 (`Odin3`) | Android 15 / API 35 with expected stock interfaces | Firmware 1.0.0.187 tested for cooling, two-ring LEDs, standby and Quick Settings; Raven 1.0.0.189 r2 tested for stock/custom CPU/GPU profiles, conservative recovery, fan control and firmware-update backup verification. CPU/GPU tuning also requires the expected CQ8725S platform and stock/recovery frequency steps. |
 | Other devices | — | Hardware controls are blocked; compatibility is not assumed. |
 
 Hardware controls currently require the primary Android user (user 0).
@@ -56,7 +64,7 @@ Odin 2 above-shade rendering and forced helper-exit/timeout fallbacks were teste
 
 1. Install the APK on the supported device and complete the first-launch guided setup. Fan control can be skipped.
 2. Allow fan notifications before applying a custom curve. Begin with a short supervised test; **Use Smart** hands control to OEM Smart cooling.
-3. In **LEDs**, select a zone, choose a color/brightness and press **Save**. On Odin 2, Save applies the selected light immediately. On Odin 3, Save stores the selected ring edit for the LED profile. **Apply to all lights** applies it to all supported zones.
+3. In **LEDs**, select a zone, choose a color/brightness and press **Save**. On Odin 2, Save applies the selected light immediately. On Odin 3, color and brightness edits preview live; Save retains the selected edit. Each ring can also be enabled or disabled in a saved profile. **Apply to all lights** applies it to all supported zones.
 4. Save fan and LED profiles in their respective tabs. Add **Raven Fan** and **Raven LED** from Android's Quick Settings tile editor.
 5. Use **Settings → Advanced → Rerun Guided Setup** to repeat checks. Recovery actions are in the same section.
 
@@ -70,9 +78,11 @@ Before uninstalling, choose **Use Smart** or the appropriate recovery action and
 
 See [BUILDING.md](BUILDING.md). Java sources, Android resources, shell helper, GPL text and host tests are included in [Source](Source). OEM APKs, firmware images, private signing keys, raw device logs and personal data are not distributed.
 
-The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, then verifies APK signing/alignment. Host shell fixtures cover fan leases, takeover/recovery, four-zone colors and brightness, independent group masks, invalid input and immutable setup backups. Odin 2 checks include saved-profile application, single-zone saves, separate analog/side toggles, native fallback dialogs, above-shade popups and dismissal. Odin 3 checks include CPU-average cooling, Smart handoff, separate ring colors and brightness, standby and standard tile dialogs. The first-launch notification prompt was tested on Odin 2.
+The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, and protected Performance profile checks, then verifies APK signing/alignment. Host shell fixtures cover fan leases, takeover/recovery, four-zone colors and brightness, independent group masks, invalid input and immutable setup backups. Odin 2 checks include saved-profile application, single-zone saves, separate analog/side toggles, native fallback dialogs, above-shade popups and dismissal. Odin 3 checks include CPU-average cooling, Smart handoff, separate ring colors and brightness, standby and standard tile dialogs. The first-launch notification prompt was tested on Odin 2.
 
 The APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
+
+The 0.2.49-preview Odin 3 checks covered all three stock performance modes, guarded conservative CPU/GPU caps, conservative recovery, Quiet/Smart/Sport, manual and curve cooling, Smart handoff, and the firmware-change notice. Saved profiles/settings and the original recovery backup were preserved. Compatibility fixtures accept matching interfaces across firmware labels and reject changed topology, GPU ordering, PWM periods and corrupted backups.
 
 ## License and attribution
 

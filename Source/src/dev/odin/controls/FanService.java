@@ -8,8 +8,10 @@ import java.util.concurrent.*;
 
 /** User-started session. The root-side lease returns to OEM automatic control on loss. */
 public final class FanService extends Service {
+ static final java.util.concurrent.atomic.AtomicLong appliedRevision=new java.util.concurrent.atomic.AtomicLong();
  public static volatile String status="No fan session running";
  public static volatile boolean running=false;
+ static volatile FanService instance;static boolean closingNow(){return instance!=null&&instance.closing;}
  private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
  private volatile boolean closing=false;
  private String token;
@@ -25,7 +27,7 @@ public final class FanService extends Service {
   return nm.areNotificationsEnabled()&&channel!=null&&channel.getImportance()!=NotificationManager.IMPORTANCE_NONE;
  }
  @Override public void onCreate(){
-  super.onCreate();
+  super.onCreate();instance=this;
   NotificationManager nm=getSystemService(NotificationManager.class);
   nm.createNotificationChannel(new NotificationChannel("fan","Fan control",NotificationManager.IMPORTANCE_LOW));
  }
@@ -37,6 +39,7 @@ public final class FanService extends Service {
  }
  @Override public int onStartCommand(Intent intent,int flags,int id){
   startForeground(1,notice());
+  if(intent!=null&&!intent.getBooleanExtra("gameOverride",false))GameProfileSession.globalChoice(this,"fan");
   if(intent==null||"stop".equals(intent.getAction())){finishSession();return START_NOT_STICKY;}
   if("stock".equals(intent.getAction())){finishSession("stock-fan "+intent.getIntExtra("mode",4));return START_NOT_STICKY;}
   if(closing)return START_NOT_STICKY;
@@ -63,7 +66,7 @@ public final class FanService extends Service {
     status=Root.run(this,(update?"update2 ":"start2 ")+token).substring(3);running=true;sessionExtended=extended;
     if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
     getSharedPreferences("profile",0).edit().putString("activeFan",name).putString("lastFanProfile",name).apply();if(fromTile)getSharedPreferences("profile",0).edit().putString("tileFanSelection",name).apply();DeviceState.refreshTiles(this);
-    getSharedPreferences("state",0).edit().putString("session",token).apply();
+    getSharedPreferences("state",0).edit().putString("session",token).apply();appliedRevision.incrementAndGet();
     if(ticker==null)ticker=worker.scheduleWithFixedDelay(()->{
      if(closing)return;
      if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
@@ -79,13 +82,13 @@ public final class FanService extends Service {
   if(closing)return;closing=true;running=false;
   if(ticker!=null)ticker.cancel(false);
   worker.execute(()->{
-   try{String stopped=Root.run(this,request).substring(3);status=failure.isEmpty()?stopped:failure+" · "+stopped;if(request.equals("stock-fan 1")||request.equals("stock-fan 4")||request.equals("stock-fan 5")){String mode=request.substring(request.length()-1);getSharedPreferences("profile",0).edit().putString("lastFanProfile",DeviceState.stockName(mode)+" · stock").apply();}}
+   try{String stopped=Root.run(this,request).substring(3);status=failure.isEmpty()?stopped:failure+" · "+stopped;appliedRevision.incrementAndGet();if(request.equals("stock-fan 1")||request.equals("stock-fan 4")||request.equals("stock-fan 5")){String mode=request.substring(request.length()-1);getSharedPreferences("profile",0).edit().putString("lastFanProfile",DeviceState.stockName(mode)+" · stock").apply();}}
    catch(Exception e){status="Stop could not be confirmed. Root lease fallback: "+e.getMessage();}
    getSharedPreferences("state",0).edit().remove("session").apply();
    getSharedPreferences("profile",0).edit().remove("activeFan").apply();DeviceState.refreshTiles(this);
    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();worker.shutdown();
   });
  }
- @Override public void onDestroy(){if(!closing)finishSession();super.onDestroy();}
+ @Override public void onDestroy(){if(instance==this)instance=null;if(!closing)finishSession();super.onDestroy();}
  @Override public IBinder onBind(Intent i){return null;}
 }

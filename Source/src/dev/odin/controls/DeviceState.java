@@ -13,6 +13,13 @@ final class DeviceState {
  static boolean groupOn(Context c,boolean analog){android.content.SharedPreferences p=c.getSharedPreferences("profile",0);if(ledSignature(c).equals(p.getString("ledGroupStateObserved","")))return p.getBoolean(analog?"ledAnalogOn":"ledSideOn",false);return get(c,analog?"left_joystick_light_enabled":"left_handle_light_enabled").equals("1")||get(c,analog?"right_joystick_light_enabled":"right_handle_light_enabled").equals("1");}
  static void ownSingleLED(Context c,int target,boolean analogBefore,boolean sideBefore){ownLED(c,"Custom LEDs");c.getSharedPreferences("profile",0).edit().putBoolean("ledAnalogOn",target<2||analogBefore).putBoolean("ledSideOn",target>=2||sideBefore).apply();}
  static String led(Context c){android.content.SharedPreferences p=c.getSharedPreferences("profile",0);if(!ledSignature(c).equals(p.getString("ledObserved","")))return "System LEDs";return p.getString("activeLED","System LEDs");}
+ static String ledTileStatus(Context c){
+  if(android.os.Build.MODEL.equals("Odin3")&&get(c,"joystick_light_enabled").equals("0,0"))return "Off";
+  if(android.os.Build.MODEL.equals("Odin2")&&get(c,"left_joystick_light_enabled").equals("0")
+   &&get(c,"right_joystick_light_enabled").equals("0")&&get(c,"left_handle_light_enabled").equals("0")
+   &&get(c,"right_handle_light_enabled").equals("0"))return "Off";
+  return led(c);
+ }
  static void refreshTiles(Context c){for(Class<?> service:new Class<?>[]{FanTile.class,LedTile.class})TileService.requestListeningState(c,new ComponentName(c,service));}
  static String backupDate(String text){java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z").matcher(text);if(!m.find())return text;try{java.text.SimpleDateFormat input=new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'",java.util.Locale.ROOT);input.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));java.util.Date date=input.parse(m.group());String local=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM,java.text.DateFormat.SHORT).format(date);return text.substring(0,m.start())+local+text.substring(m.end());}catch(Exception e){return text;}}
 }

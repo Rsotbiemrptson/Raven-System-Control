@@ -116,7 +116,15 @@ backup_keys() {
 validate_backup() {
  path=$1
  [ -d "$path" ] && [ ! -L "$path" ] && [ "$(stat -c %u "$path")" = 0 ] || fail 'Recovery backup is missing or not protected'
- [ "$(cat "$path/model")" = "$model" ] && [ "$(cat "$path/sdk")" = "$sdk" ] && [ "$(cat "$path/build")" = "$(getprop ro.build.display.id)" ] || fail 'Recovery backup belongs to another device or firmware'
+ [ "$(cat "$path/model")" = "$model" ] && [ "$(cat "$path/sdk")" = "$sdk" ] || fail 'Recovery backup belongs to another device or Android version'
+ if [ "$(cat "$path/build")" != "$(getprop ro.build.display.id)" ]; then
+  # Preserve the original recovery baseline across compatible Odin 3 OTAs.
+  # Never replace its provenance or checksum with the currently applied values.
+  [ "$model:$sdk" = Odin3:35 ] && [ "$(getprop ro.soc.model)" = CQ8725S ] || fail 'Recovery backup firmware is incompatible'
+  fan_gate
+  [ "$(cat /sys/class/gpio5_pwm2/period)" = 50000 ] || fail 'Recovery fan interface changed'
+  [ -w /sys/class/sn3112l/led/brightness ] && [ -w /sys/class/sn3112r/led/brightness ] || fail 'Recovery lighting interfaces changed'
+ fi
  for key in $(backup_keys) created; do [ -s "$path/$key" ] || fail 'Recovery backup is incomplete';done
  (cd "$path" && sha256sum -c SHA256SUMS >/dev/null 2>&1) || fail 'Recovery backup integrity check failed'
  case "$(cat "$path/fan_mode")" in null|0|1|4|5|6) ;; *) fail 'Invalid saved fan mode';; esac
@@ -196,6 +204,9 @@ cleanup() {
  exit "$result"
 }
 gate
+case "$OP" in
+ performance-*) . "$(dirname "$0")/performance.sh";performance_main "$@";exit $?;;
+esac
 case "${1:-}" in
 fan-temperature)
  [ "$#" -eq 2 ] || fail 'Invalid temperature request'
@@ -263,6 +274,12 @@ backup-status)
  validate_backup "$B"
  echo "OK Recovery backup ready: $(cat "$B/created")"
  ;;
+backup-firmware)
+ # Read provenance even when a changed interface prevents recovery validation.
+ [ -d "$B" ] && [ ! -L "$B" ] && [ "$(stat -c %u "$B")" = 0 ] || fail 'Recovery backup missing'
+ (cd "$B" && sha256sum -c SHA256SUMS >/dev/null 2>&1) || fail 'Recovery backup integrity check failed'
+ echo "OK $(cat "$B/build")"
+ ;;
 fan-recover)
  validate_backup "$B"
  sh "$0" stop > "$D/recovery-stop.log" 2>&1 || fail 'Stop the current fan session before recovery'
@@ -320,7 +337,7 @@ loop)
  trap cleanup EXIT
  trap 'reason=stopped; exit 0' INT TERM
  touch "$R/armed"
- was=0;last_start=0;expected_mode=;expected_speed=
+ was=0;last_start=0;expected_mode=;expected_speed=;output_mismatch=0
  while :; do
   [ ! -f "$R/stop" ] || { reason=stopped; exit 0; }
   [ "$(am get-current-user 2>/dev/null)" = 0 ] || { reason=user-changed; exit 0; }
@@ -331,11 +348,25 @@ loop)
   [ "${points:-}" != - ] || points=
   if [ -n "${points:-}" ]; then valid_points "$points" "$range" || { reason=invalid-policy;exit 0; };fi
   [ "$(cat /sys/class/gpio5_pwm2/period)" = 50000 ] || { reason=pwm-period-changed;exit 0; }
+  # Game Assistant can use the OEM fan provider without changing the global
+  # mode. Give stock writes time to settle, then yield on persistent changes.
+  if [ "$model" = Odin3 ] && [ -n "$expected_mode" ]; then
+   actual_state=$(cat /sys/class/gpio5_pwm2/state 2>/dev/null)
+   actual_duty=$(cat /sys/class/gpio5_pwm2/duty 2>/dev/null)
+   if { [ "$expected_mode" = 0 ] && [ "$actual_state" = 0 ]; } ||
+      { [ "$expected_mode" = 6 ] && [ "$actual_state" = 1 ] && [ "$actual_duty" = "$expected_speed" ]; }; then
+    output_mismatch=0
+   else
+    output_mismatch=$((output_mismatch+1))
+    [ "$output_mismatch" -lt 2 ] || { reason=system-control-changed;exit 0; }
+   fi
+  fi
   time=$(now);lease=$(cat "$R/lease" 2>/dev/null)
   number "$time" && number "$lease" || { reason=lease-invalid; exit 0; }
   [ "$((time-lease))" -le 15 ] && [ "$time" -ge "$lease" ] || { reason=app-lease-expired; exit 0; }
   temp=$(read_temperature "$zone") || { reason=sensor-unavailable; exit 0; }
   [ "$temp" -gt 0 ] && [ "$temp" -lt 80 ] || { reason=temperature-fallback; exit 0; }
+  if [ "$output_mismatch" -gt 0 ]; then sleep 3;continue;fi
   if [ "$kind" = manual ]; then percent=$manual
   elif [ -n "${points:-}" ]; then percent=$(points_percent)
   elif [ "$temp" -le "$off" ] || { [ "$was" -eq 0 ] && [ "$temp" -lt "$on" ]; }; then percent=0
@@ -381,9 +412,76 @@ stop)
 status)
  if [ -d "$R" ]; then echo "OK $(cat "$R/status" 2>/dev/null)";else echo "OK Inactive | $(cat "$D/last-result" 2>/dev/null)";fi
  ;;
+light-ring-enable)
+ [ "$lighting" = rings ] && [ "$#" -eq 3 ] || fail 'Odin 3 ring settings required'
+ case "$3" in 0|1) ;; *) fail 'Invalid enable value';; esac
+ mask=$(get joystick_light_enabled)
+ case "$mask" in 0,0|0,1|1,0|1,1) ;; null) mask=0,0;; *) fail 'Invalid ring enables';; esac
+ case "$2" in
+  left) mask="$3,${mask#*,}";;
+  right) mask="${mask%,*},$3";;
+  both) mask="$3,$3";;
+  *) fail 'Unknown stick ring';;
+ esac
+ save_lighting
+ put joystick_light_enabled "$mask" || fail 'Could not change ring enables'
+ echo 'OK Ring enables applied'
+ ;;
+light-ring|light-ring-restore)
+ [ "$lighting" = rings ] && [ "$#" -eq 4 ] || fail 'Odin 3 ring settings required'
+ if [ "$OP" = light-ring ]; then
+  ring=$2;rgb=$3;level=$4
+  case "$ring" in 0|1) ;; *) fail 'Unknown stick ring';; esac
+  case "$rgb" in *[!0-9a-fA-F]*) fail 'Invalid RGB color';; esac
+  [ "${#rgb}" -eq 6 ] && number "$level" && [ "$level" -le 100 ] || fail 'Invalid ring color or brightness'
+  colors=$(get joystick_led_light_picker_color)
+  mask=$(get joystick_light_enabled)
+  brightness=$(get led_light_brightness_percent)
+  [ "$colors" != null ] || colors='#000000,#000000'
+  [ "$mask" != null ] || mask=0,0
+  [ "$brightness" != null ] || brightness=1.00
+ else
+  colors=$2;brightness=$3;mask=$4
+ fi
+ if [ "$colors" != null ]; then
+  printf '%s\n' "$colors" | awk '$0 !~ /^#[0-9A-Fa-f]+,#[0-9A-Fa-f]+$/ || length($0)!=15 || index($0,",")!=8 {exit 1}' || fail 'Invalid ring colors'
+ fi
+ if [ "$brightness" != null ]; then
+  printf '%s\n' "$brightness" | awk '$0 !~ /^[0-9]+([.][0-9]+)?$/ || $0+0>1 {exit 1}' || fail 'Invalid ring brightness'
+ fi
+ case "$mask" in null|0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
+ if [ "$OP" = light-ring ]; then
+  # The OEM applies one multiplier to both colors. Bake it into the other
+  # ring first so changing this ring does not change its visible brightness.
+  if [ "$ring" = 0 ]; then other=${colors#*,};else other=${colors%,*};fi
+  scale_rgb() {
+   hex=$1; factor=$2
+   r=${hex%????};g=${hex#??};g=${g%??};b=${hex#????}
+   awk -v r="$((0x$r))" -v g="$((0x$g))" -v b="$((0x$b))" -v f="$factor" 'BEGIN {printf "#%02X%02X%02X",r*f,g*f,b*f}'
+  }
+  scaled=$(scale_rgb "$rgb" "$(awk -v n="$level" 'BEGIN {print n/100}')") || fail 'Cannot scale ring'
+  other=$(scale_rgb "${other#\#}" "$brightness") || fail 'Cannot preserve other ring'
+  if [ "$ring" = 0 ]; then colors="$scaled,$other";mask="1,${mask#*,}"
+  else colors="$other,$scaled";mask="${mask%,*},1";fi
+  brightness=1.00
+  save_lighting
+ fi
+ for pair in "joystick_led_light_picker_color:$colors" "led_light_brightness_percent:$brightness" "joystick_light_enabled:$mask"; do
+  key=${pair%%:*};value=${pair#*:}
+  [ "$(get "$key")" != "$value" ] || continue
+  if [ "$value" = null ]; then
+   settings --user 0 delete system "$key" >/dev/null 2>&1 && [ "$(get "$key")" = null ] || fail 'Could not restore ring settings'
+  else
+   put "$key" "$value" || fail 'Could not apply ring settings'
+  fi
+ done
+ echo 'OK Ring settings applied'
+ ;;
 light)
- [ "$#" -eq 4 ] || [ "$#" -eq 5 ] || fail 'Invalid lighting request'
- left=$2;right=$3;brightness=$4;side=${5:-keep}
+ [ "$#" -ge 4 ] && [ "$#" -le 6 ] || fail 'Invalid lighting request'
+ left=$2;right=$3;brightness=$4;side=${5:-keep};mask=${6:-1,1}
+ case "$mask" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
+ [ "$#" -ne 6 ] || [ "$lighting" = rings ] || fail 'Ring mask requires Odin 3' 
  case "$side" in keep|on|off) ;; *) fail 'Invalid side-light request';; esac
  [ "$lighting" = shared ] || [ "$side" = keep ] || fail 'Side-light control is supported on Odin 2 firmware 400 only'
  [ "${#left}" = 6 ] && [ "${#right}" = 6 ] || fail 'Use six-digit RGB colors'
@@ -403,17 +501,24 @@ light)
   esac
   echo "OK Shared ring color applied through stock settings. Side lights: $side. Enabled side lights share the stick color and brightness. side_left=$(get left_handle_light_enabled) side_right=$(get right_handle_light_enabled)"
  else
-  put joystick_led_light_picker_color "#$left,#$right" && put led_light_brightness_percent "$value" && put joystick_light_enabled '1,1' || fail 'Lighting settings write failed; restore the snapshot'
+  put joystick_led_light_picker_color "#$left,#$right" && put led_light_brightness_percent "$value" && put joystick_light_enabled "$mask" || fail 'Lighting settings write failed; restore the snapshot'
   echo 'OK Left and right ring colors applied through stock settings'
  fi
  ;;
 light-zones|light-groups)
- [ "$OP" != light-groups ] || [ "$#" -eq 11 ] || fail 'Invalid fast-group request'
+ [ "$OP" != light-groups ] || [ "$#" -eq 11 ] || [ "$#" -eq 12 ] || fail 'Invalid fast-group request'
  [ "$lighting" = shared ] || fail 'Four-zone lighting requires Odin 2 firmware 400'
- [ "$#" -eq 7 ] || [ "$#" -eq 10 ] || [ "$#" -eq 11 ] || fail 'Invalid four-zone lighting request'
+ [ "$#" -eq 7 ] || [ "$#" -eq 10 ] || [ "$#" -eq 11 ] || [ "$#" -eq 12 ] || fail 'Invalid four-zone lighting request'
  left=$2;right=$3;handle_left=$4;handle_right=$5;brightness=$6
  rings=on
- if [ "$#" -eq 11 ]; then rings=${11};fi
+ mask=
+ if [ "$#" -ge 11 ]; then
+  case "${11}" in
+   on|off) rings=${11};mask=${12:-};;
+   *) [ "$OP" = light-zones ] && [ "$#" -eq 11 ] || fail 'Invalid analog-light request';mask=${11};;
+  esac
+ fi
+ case "$mask" in ''|[01][01][01][01]) ;; *) fail 'Invalid LED mask';; esac
  case "$rings" in on|off) ;; *) fail 'Invalid analog-light request';; esac
  if [ "$#" -ge 10 ]; then right_b=$7;handle_left_b=$8;handle_right_b=$9;side=${10};else right_b=$brightness;handle_left_b=$brightness;handle_right_b=$brightness;side=$7;fi
  for color in "$left" "$right" "$handle_left" "$handle_right"; do
@@ -426,16 +531,24 @@ light-zones|light-groups)
  [ -w /sys/class/sn3112l/led/brightness ] && [ -w /sys/class/sn3112r/led/brightness ] || fail 'Expected writable lighting interfaces not found'
  save_lighting
  touch "$D/lights/direct" || fail 'Cannot retain direct-lighting recovery marker'
- if [ "$OP" = light-groups ]; then
-  case "$side" in on|off) ;; *) fail 'Fast groups require an explicit side state';; esac
+ if [ "$OP" = light-groups ] || [ -n "$mask" ]; then
+  case "$side" in on|off) ;; *) [ -n "$mask" ] || fail 'Fast groups require an explicit side state';; esac
   [ -w /sys/class/sn3112l/led/enable ] && [ -w /sys/class/sn3112r/led/enable ] || fail 'Expected writable lighting enables not found'
   # Persist the mask the OEM reapplies on wake. A hardware-only mask is lost on
   # standby, leaving Raven's cached switches inconsistent with the real lights.
   ring_enable=0;[ "$rings" = on ] && ring_enable=1
   side_enable=0;[ "$side" = on ] && side_enable=1
+  if [ -z "$mask" ]; then mask="$ring_enable$ring_enable$side_enable$side_enable";fi
+  left_on=${mask%???};right_on=${mask#?};right_on=${right_on%??}
+  handle_left_on=${mask%?};handle_left_on=${handle_left_on#??};handle_right_on=${mask#???}
   changed=0
   for key in left_joystick_light_enabled right_joystick_light_enabled left_handle_light_enabled right_handle_light_enabled; do
-   case "$key" in *joystick*) wanted=$ring_enable;; *) wanted=$side_enable;; esac
+   case "$key" in
+    left_joystick*) wanted=$left_on;;
+    right_joystick*) wanted=$right_on;;
+    left_handle*) wanted=$handle_left_on;;
+    right_handle*) wanted=$handle_right_on;;
+   esac
    if [ "$(get "$key")" != "$wanted" ]; then
     put "$key" "$wanted" || fail 'Group state persistence failed; recovery retained'
     changed=1
@@ -444,8 +557,8 @@ light-zones|light-groups)
   # Shared-color profiles already match the OEM observer's output. Only truly
   # independent colors need its repaint to settle before our final zone write.
   compatible=1;stock_color=$(get led_light_picker_color);stock_level=$(get led_light_brightness_percent)
-  for zone in "$left:$brightness:$rings" "$right:$right_b:$rings" "$handle_left:$handle_left_b:$side" "$handle_right:$handle_right_b:$side"; do
-   zone_on=${zone##*:};[ "$zone_on" = on ] || continue
+  for zone in "$left:$brightness:$left_on" "$right:$right_b:$right_on" "$handle_left:$handle_left_b:$handle_left_on" "$handle_right:$handle_right_b:$handle_right_on"; do
+   zone_on=${zone##*:};[ "$zone_on" = 1 ] || continue
    zone_color=${zone%%:*};rest=${zone#*:};zone_level=${rest%%:*}
    [ "$stock_color" = "$((0xFF$zone_color-4294967296))" ] || compatible=0
    awk -v stock="$stock_level" -v percent="$zone_level" 'BEGIN {exit !(stock ~ /^[0-9]+([.][0-9]+)?$/ && stock*100==percent)}' || compatible=0
@@ -453,18 +566,20 @@ light-zones|light-groups)
   if [ "$changed" = 1 ] && [ "$compatible" = 0 ]; then sleep 1;fi
   echo groups > "$D/lights/direct" || fail 'Cannot retain fast-group state'
   active=0
-  if [ "$rings" = on ] || [ "$side" = on ]; then
+  if [ "$mask" != 0000 ]; then
    active=1
    echo 1 > /sys/class/sn3112l/led/enable && echo 1 > /sys/class/sn3112r/led/enable || fail 'Fast-group enable failed; recovery retained'
   fi
-  [ "$rings" = on ] || { left=000000;right=000000; }
-  [ "$side" = on ] || { handle_left=000000;handle_right=000000; }
+  [ "$left_on" = 1 ] || left=000000
+  [ "$right_on" = 1 ] || right=000000
+  [ "$handle_left_on" = 1 ] || handle_left=000000
+  [ "$handle_right_on" = 1 ] || handle_right=000000
   write_zone /sys/class/sn3112l/led/brightness 1 "$handle_left" "$handle_left_b" && write_zone /sys/class/sn3112l/led/brightness 2 "$left" "$brightness" && write_zone /sys/class/sn3112r/led/brightness 1 "$handle_right" "$handle_right_b" && write_zone /sys/class/sn3112r/led/brightness 2 "$right" "$right_b" || fail 'Fast-group color write failed; recovery retained'
   if [ "$active" = 0 ]; then
    echo 0 > /sys/class/sn3112l/led/enable && echo 0 > /sys/class/sn3112r/led/enable || fail 'Fast-group disable failed; recovery retained'
   fi
   echo "$active" > "$D/lights/active-l";echo "$active" > "$D/lights/active-r"
-  echo "OK Direct groups analog=$rings side=$side"
+  echo "OK Direct lighting mask=$mask"
   exit 0
  fi
  : > "$D/lights/direct" || fail 'Cannot retain direct-lighting recovery marker'

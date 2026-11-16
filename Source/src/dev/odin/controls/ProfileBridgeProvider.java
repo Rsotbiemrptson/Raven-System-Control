@@ -1,0 +1,39 @@
+package dev.odin.controls;
+import android.content.*;import android.database.Cursor;import android.net.Uri;import android.os.*;import org.json.*;import java.util.*;
+
+/** Narrow bridge for the system Game Assistant. Raw hardware services remain private. */
+public final class ProfileBridgeProvider extends ContentProvider {
+    public boolean onCreate(){return true;}
+    static void authorize(int uid,int own){if(uid!=1000&&uid!=own)throw new SecurityException("Only the system Game Assistant may use this bridge");}
+    static void type(String kind){if(!Arrays.asList("led","fan","cpu").contains(kind))throw new IllegalArgumentException("Unknown profile type");}
+    static ArrayList<String> names(Context c,String kind){if(!kind.equals("cpu"))return ProfileActions.names(c,kind.equals("fan"));ArrayList<String> names=new ArrayList<>(Arrays.asList(PerformanceProfile.STOCK_NAMES)),custom=new ArrayList<>();for(String key:c.getSharedPreferences("profile",0).getAll().keySet())if(key.startsWith("performance:"))custom.add(key.substring(12));Collections.sort(custom,String.CASE_INSENSITIVE_ORDER);names.addAll(custom);return names;}
+    @Override public Bundle call(String method,String kind,Bundle extras){int caller=Binder.getCallingUid();if(caller!=1000&&caller!=android.os.Process.myUid()){try{android.content.pm.PackageManager pm=getContext().getPackageManager();if(caller!=pm.getApplicationInfo("com.android.systemui",0).uid||pm.checkSignatures("com.android.systemui","com.odin.gameassistant")!=android.content.pm.PackageManager.SIGNATURE_MATCH)throw new SecurityException("Trusted SystemUI required");}catch(android.content.pm.PackageManager.NameNotFoundException e){throw new SecurityException("Trusted SystemUI unavailable");}}else authorize(caller,android.os.Process.myUid());if(!Arrays.asList("sync_game","export_profiles","import_profiles").contains(method))type(kind);long identity=Binder.clearCallingIdentity();Bundle result=new Bundle();try{
+        Context c=getContext();android.content.SharedPreferences prefs=c.getSharedPreferences("profile",0);ArrayList<String> names=Arrays.asList("led","fan","cpu").contains(kind)?names(c,kind):new ArrayList<>();boolean ready=prefs.getBoolean("setupCompleteV2",false);
+        if(method.equals("sync_game")){return GameProfileSession.sync(c,extras.getString("game",""),new JSONObject(extras.getString("choices","{}")),extras.getString("strict",""),extras.getInt("odin_cpu",android.provider.Settings.System.getInt(c.getContentResolver(),"performance_mode",0)));}
+        else if(method.equals("export_profiles")){result.putString("definitions",ProfileDefinitions.export(c).toString());}
+        else if(method.equals("import_profiles")){ProfileDefinitions.restore(c,new JSONObject(extras.getString("definitions")),extras.getBoolean("replace",false));result.putBoolean("ok",true);}
+        else if(method.equals("release_game_fan")){GameProfileSession.stopFan(c);GameProfileSession.globalChoice(c,"fan");result.putBoolean("ok",true);}
+        else if(method.equals("ownership")){result.putInt("protocol",1);result.putBoolean("active",ready&&(kind.equals("cpu")?PerformanceOwnership.active(c):kind.equals("fan")&&(FanService.running||GameProfileSession.store(c).contains("global_fan"))));}
+        else if(method.equals("release_cpu")){if(!kind.equals("cpu")||extras==null)throw new IllegalArgumentException("Stock CPU mode required");GameProfileSession.globalChoice(c,"cpu");PerformanceOwnership.stock(c,extras.getInt("mode",-1));result.putBoolean("ok",true);}
+        else if(method.equals("led_state")){String mask=DeviceState.get(c,"joystick_light_enabled");result.putString("state",new JSONObject().put("left",mask.startsWith("1,")).put("right",mask.endsWith(",1")).toString());}
+        else if(method.equals("led_power")){if(!kind.equals("led")||!ready)throw new IllegalArgumentException("LED setup required");ProfileActions.ringPower(c,extras.getString("ring"),extras.getBoolean("enabled"));result.putBoolean("ok",true);}
+        else if(method.equals("list")){JSONObject j=new JSONObject().put("ready",ready).put("names",new JSONArray(names)).put("current",kind.equals("fan")?ProfileActions.currentFanProfile(c):kind.equals("cpu")?currentCpu(c):prefs.getString("activeLED",""));j.put("appearanceLight",prefs.getString("appearanceMode","dark").equals("light")).put("appearanceAccent",prefs.getInt("accentColor",0xffff8000));result.putString("profiles",j.toString());}
+        else if(method.equals("apply")){if(!ready)throw new IllegalArgumentException("Complete Guided Setup in Raven System Control first.");String name=extras==null?null:extras.getString("name");if(name==null||!names.contains(name))throw new IllegalArgumentException("The saved profile no longer exists. Reopen the picker.");if(kind.equals("cpu"))applyCpu(c,name);else ProfileActions.apply(c,kind.equals("fan"),name);result.putBoolean("ok",true);}
+        else throw new IllegalArgumentException("Unknown bridge method");
+    }catch(Exception e){result.putString("error",e.getMessage()==null?"Could not access this profile.":e.getMessage());}finally{Binder.restoreCallingIdentity(identity);}return result;}
+    static String currentCpu(Context c)throws Exception{PerformancePanel.Status live=new PerformancePanel.Status(Root.run(c,"performance-status"));android.content.SharedPreferences p=c.getSharedPreferences("profile",0);String config=p.getString("performanceActiveConfig",null);if(config!=null&&live.current.effectiveMatches(PerformancePanel.decode(new JSONObject(config))))return p.getString("performanceActiveName","");for(int i=0;i<3;i++)if(live.current.effectiveMatches(live.stock[i]))return PerformanceProfile.STOCK_NAMES[i];return "";}
+    static void applyCpu(Context c,String name)throws Exception{GameProfileSession.globalChoice(c,"cpu");applyCpuScoped(c,name);}
+    static void applyCpuScoped(Context c,String name)throws Exception{
+        if(!Build.MODEL.equals("Odin3"))throw new IllegalArgumentException("CPU profiles require Odin 3.");PerformancePanel.Status status=new PerformancePanel.Status(Root.run(c,"performance-status"));PerformanceProfile selected=null;
+        for(int i=0;i<PerformanceProfile.STOCK_NAMES.length;i++)if(name.equals(PerformanceProfile.STOCK_NAMES[i]))selected=status.stock[i].copy();
+        if(selected==null)selected=PerformancePanel.decode(new JSONObject(c.getSharedPreferences("profile",0).getString("performance:"+name,"{}")));selected.validate(status.frequencies);
+        applyCpuConfig(c,name,selected);
+    }
+    static void applyCpuConfig(Context c,String name,PerformanceProfile selected)throws Exception{
+        PerformancePanel.Status status=new PerformancePanel.Status(Root.run(c,"performance-status"));selected.validate(status.frequencies);PerformanceOwnership.begin(c);boolean stock=false;for(int i=0;i<3;i++)if(name.equals(PerformanceProfile.STOCK_NAMES[i])&&selected.same(status.stock[i]))stock=true;
+        if(stock){Root.run(c,"performance-stock "+selected.mode);c.getSystemService(android.app.NotificationManager.class).cancel(3);}else{String limits=""+selected.mode;for(int i=0;i<3;i++)limits+=" "+selected.minimum[i]+" "+selected.maximum[i];PerformanceService.apply(c,limits);}
+        String config=PerformancePanel.encode(selected).toString();c.getSharedPreferences("profile",0).edit().putString("performanceActiveName",name).putString("performanceActiveConfig",config).putString("performanceSelection",name).putString("performanceDraft",config).commit();
+    }
+
+    public Cursor query(Uri u,String[] p,String s,String[] a,String o){throw new UnsupportedOperationException();}public String getType(Uri u){return null;}public Uri insert(Uri u,ContentValues v){throw new UnsupportedOperationException();}public int delete(Uri u,String s,String[] a){throw new UnsupportedOperationException();}public int update(Uri u,ContentValues v,String s,String[] a){throw new UnsupportedOperationException();}
+}

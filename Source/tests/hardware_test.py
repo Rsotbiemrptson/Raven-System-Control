@@ -41,7 +41,14 @@ case "$3" in
 get) if [ -f "$D/$5" ]; then cat "$D/$5";else echo null;fi;;
 put) [ ! -f "$D/fail-$5-$6" ] || exit 1
  printf '%s' "$6" > "$D/$5"
- echo "$5=$6" >> "$D/put-log";;
+ echo "$5=$6" >> "$D/put-log"
+ if [ "$(getprop ro.product.model)" = Odin3 ]; then
+  case "$5:$6" in
+   fan_mode:0) echo 0 > "{fan}/state";;
+   fan_mode:6) echo 1 > "{fan}/state";cat "$D/fan_speed" > "{fan}/duty";;
+   fan_speed:*) printf '%s' "$6" > "{fan}/duty";;
+  esac
+ fi;;
 delete) [ -f "$D/ignore-delete-$5" ] || rm -f "$D/$5";;
 *) exit 1;;
 esac''')
@@ -140,6 +147,36 @@ esac''')
         assert not runpath.exists()
         executable('getprop','case "$1" in ro.product.model) echo Odin3;; *) echo 35;; esac')
         print('PASS unsupported model and out-of-range manual control are blocked')
+        (state/'joystick_led_light_picker_color').write_text('#AABBCC,#00FF00')
+        (state/'led_light_brightness_percent').write_text('0.50')
+        (state/'joystick_light_enabled').write_text('0,1')
+        for ring,enable,expected in [('left',1,'1,1'),('right',0,'1,0'),('left',0,'0,0'),('both',1,'1,1'),('both',0,'0,0'),('right',1,'0,1')]:
+            run('light-ring-enable',ring,enable)
+            assert value('joystick_light_enabled')==expected
+            assert value('joystick_led_light_picker_color')=='#AABBCC,#00FF00'
+            assert value('led_light_brightness_percent')=='0.50'
+        run('light-ring-enable','left',2,ok=False)
+        print('PASS Odin3 independent ring enables and global power retain colors and brightness')
+        run('light-ring',0,'FF0000',25)
+        assert value('joystick_led_light_picker_color')=='#3F0000,#007F00'
+        assert value('joystick_light_enabled')=='1,1' and value('led_light_brightness_percent')=='1.00'
+        run('light-ring',1,'0000FF',50)
+        assert value('joystick_led_light_picker_color')=='#3F0000,#00007F'
+        run('light-ring-restore','#AABBCC,#00FF00','0.50','0,1')
+        assert value('joystick_led_light_picker_color')=='#AABBCC,#00FF00'
+        assert value('joystick_light_enabled')=='0,1' and value('led_light_brightness_percent')=='0.50'
+        run('light-ring',2,'FF0000',100,ok=False)
+        run('light-ring-restore','null','null','null')
+        run('restore-light')
+        run('light-ring-restore','null','null','null')
+        print('PASS Odin3 single-ring preview, preserved peer output, exact cancel and null restore')
+        start(60000);waitfor(lambda:value('fan_mode')=='6')
+        (fan/'duty').write_text('5000')
+        waitfor(lambda:not runpath.exists())
+        assert (control/'last-result').read_text()=='system-control-changed'
+        assert (fan/'duty').read_text()=='5000'
+        print('PASS Odin3 yields to a direct OEM fan override')
+
         run('light','FF0000','00FF00',50)
         assert value('joystick_led_light_picker_color')=='#FF0000,#00FF00'
         run('light','0000FF','FFFFFF',100)
