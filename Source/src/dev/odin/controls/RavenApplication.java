@@ -8,7 +8,7 @@ public final class RavenApplication extends Application {
   TileSyncJob.ensureScheduled(this);
   if(android.os.Build.MODEL.equals("Odin3")){
    new Thread(()->{
-    try{Root.run(this,"performance-bootstrap");String packed=SegmentSession.packed(this);String mask=DeviceState.get(this,"joystick_light_enabled");if(!packed.isEmpty()&&mask.matches("[01],[01]"))Root.run(this,"light-segments "+packed+" "+mask);}
+    try{Root.run(this,"performance-bootstrap");SegmentSession.ensureService(this);}
     catch(Exception error){android.util.Log.e("RavenPerformance","Performance recovery check failed",error);}
    },"PerformanceRecoveryCheck").start();
   }

@@ -43,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/Release staging/0.2.54-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.55-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -109,3 +109,5 @@ Run the isolated stock-mask regression with python3 Source/tests/segment_mask_te
 Before publishing changes to segment behavior, test both mixed disabled sections and all sections disabled through standby/wake on the exact candidate APK. Observe the first instant of wake for flashes, verify stick-toggle state, and restore original lighting, profiles and recovery data. Live on/off tests alone do not cover standby.
 
 The shell segment regression also checks the dark OEM wake fallback, restoration of default/explicit stock colors, rejection of invalid colors, and preservation of a newer stock color selection. Saved disabled-segment profiles must be applied from both the app and actual Raven LED quick tile before their respective standby checks.
+
+Stock handoff fixtures verify explicit whole-ring frame replacement with default or selected colors, correct brightness scaling and preserved power masks. Cold process restart and actual stock-tile takeover must also pass visually through standby on the candidate build.

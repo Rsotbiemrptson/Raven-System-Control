@@ -20,6 +20,7 @@ public class FanTile extends TileService {
   else openChooser();
  }
  private void openChooser(){
+  if(leds())SegmentSession.ensureService(this);
   if(ShadeProfileBridge.open(this,leds()?"led":"fan")){update();return;}
   if(TilePopupService.supported(Build.MODEL,Build.VERSION.SDK_INT)){
    TilePopupService.open(this,!leds(),this::standardPopup);

@@ -32,7 +32,8 @@ delete) rm -f "{settings}/$5";;
     }.items():
         executable(tools / name, body)
     recorded = root / "writer-request"
-    executable(root / "ring-segments", f'''if [ "$1" != probe ];then [ "$(settings --user 0 get system joystick_led_light_picker_color)" = '#000000,#000000' ] || exit 9;printf '%s|%s' "$1" "$2" > "{recorded}";fi
+    executable(root / "ring-segments", f'''if [ "$1" = stock ];then printf 'stock|%s|%s' "$2" "$3" > "{recorded}";echo OK;exit 0;fi
+if [ "$1" != probe ];then [ "$(settings --user 0 get system joystick_led_light_picker_color)" = '#000000,#000000' ] || exit 9;printf '%s|%s' "$1" "$2" > "{recorded}";fi
 echo OK''')
     env = dict(os.environ, PATH=str(tools) + ":" + os.environ["PATH"])
     (settings / "joystick_light_enabled").write_text("1,1")
@@ -55,11 +56,16 @@ echo OK''')
         return subprocess.run(["sh", str(helper), "light-stock-colors", color], env=env, capture_output=True, text=True, timeout=10)
     assert restore("null").returncode == 0
     assert not (settings / "joystick_led_light_picker_color").exists()
+    assert recorded.read_text() == 'stock|' + '15706C' * 8 + '|0,0'
     (settings / "joystick_led_light_picker_color").write_text("#000000,#000000")
     assert restore("#123456,#ABCDEF").returncode == 0
     assert (settings / "joystick_led_light_picker_color").read_text() == "#123456,#ABCDEF"
     assert restore("#FF0000,#FF0000").returncode == 0
     assert (settings / "joystick_led_light_picker_color").read_text() == "#123456,#ABCDEF"
+    assert recorded.read_text() == 'stock|' + '091A2B' * 4 + '556677' * 4 + '|0,0'
+    (settings / "joystick_light_enabled").write_text("1,0")
+    assert restore("null").returncode == 0
+    assert recorded.read_text() == 'stock|' + '091A2B' * 4 + '556677' * 4 + '|1,0'
     assert restore("bad").returncode != 0
     print("PASS dark wake fallback, stock default/color restoration, explicit stock selection preserved")
     print("PASS shell segment masks: all-off, either empty ring, mixed output, explicit off, original snapshot retained")

@@ -22,14 +22,16 @@ static int discover(void){char model[PROP_VALUE_MAX];if(getuid()!=0||__system_pr
 int main(int argc,char **argv){
  if(discover()){puts("ERROR Compatible HTR3212 ring interfaces unavailable");return 1;}
  if(argc==2&&!strcmp(argv[1],"probe")){puts("OK HTR3212 physical segment mapping v1");return 0;}
+ int stock=argc==4&&!strcmp(argv[1],"stock");if(stock){argc--;argv++;}
  if(argc!=3||strlen(argv[1])!=48||strlen(argv[2])!=3||argv[2][1]!=','||!strchr("01",argv[2][0])||!strchr("01",argv[2][2])||strspn(argv[1],"0123456789abcdefABCDEF")!=48){puts("ERROR Invalid segment request");return 1;}
  int failed=0;for(int s=0;s<2&&!failed;s++){
-  if(argv[2][s*2]=='0'){failed=syswrite(s,"enable","0\n");continue;}
+  if(!stock&&argv[2][s*2]=='0'){failed=syswrite(s,"enable","0\n");continue;}
   if(syswrite(s,"enable","1\n")||reg(s,0,0)){failed=1;break;}
   uint8_t pwm[12],controls[12];segment_frame(argv[1],s,pwm,controls);
   for(int c=0;c<12&&!failed;c++)if(reg(s,0x0d+c,pwm[c]))failed=1;
   for(int c=0;c<12&&!failed;c++)if(reg(s,0x32+c,controls[c]))failed=1;
-  if(!failed&&(reg(s,0x25,0)||reg(s,0,1)))failed=1;
+  if(!failed&&(reg(s,0x25,0)||reg(s,0,argv[2][s*2]=='1'?1:0)))failed=1;
+  if(!failed&&argv[2][s*2]=='0'&&syswrite(s,"enable","0\n"))failed=1;
  }
  if(failed){syswrite(0,"enable","0\n");syswrite(1,"enable","0\n");puts("ERROR Segment write failed; both rings disabled");return 1;}
  puts("OK Ring segments applied");return 0;

@@ -11,6 +11,13 @@ put() {
  settings --user 0 put system "$1" "$2" >/dev/null 2>&1 || return 1
  [ "$(get "$1")" = "$2" ]
 }
+stage_segments() {
+ helper=${0%/*}/ring-segments
+ [ -f "$helper" ] && [ ! -L "$helper" ] || fail 'Segment helper missing'
+ mkdir -p "$D" && chmod 700 "$D" || fail 'Cannot protect segment helper'
+ [ ! -L "$D/ring-segments" ] && [ ! -L "$D/ring-segments.new" ] || fail 'Unsafe segment helper path'
+ cp "$helper" "$D/ring-segments.new" && chmod 700 "$D/ring-segments.new" && mv "$D/ring-segments.new" "$D/ring-segments" || fail 'Cannot stage segment helper'
+}
 restore_key() {
  value=$(cat "$1" 2>/dev/null) || return 1
  if [ "$value" = null ]; then
@@ -414,11 +421,7 @@ status)
  ;;
 light-segments-probe|light-segments|light-segments-sleep)
  [ "$lighting" = rings ] || fail 'Individual ring segments require compatible Odin 3 controllers'
- helper=${0%/*}/ring-segments
- [ -f "$helper" ] && [ ! -L "$helper" ] || fail 'Segment helper missing'
- mkdir -p "$D" && chmod 700 "$D" || fail 'Cannot protect segment helper'
- [ ! -L "$D/ring-segments" ] && [ ! -L "$D/ring-segments.new" ] || fail 'Unsafe segment helper path'
- cp "$helper" "$D/ring-segments.new" && chmod 700 "$D/ring-segments.new" && mv "$D/ring-segments.new" "$D/ring-segments" || fail 'Cannot stage segment helper'
+ stage_segments
  if [ "$OP" = light-segments-probe ]; then "$D/ring-segments" probe;exit $?;fi
  if [ "$OP" = light-segments-sleep ]; then "$D/ring-segments" 000000000000000000000000000000000000000000000000 0,0;exit $?;fi
  [ "$#" -eq 3 ] && [ "${#2}" -eq 48 ] || fail 'Invalid segment colors'
@@ -460,6 +463,26 @@ light-stock-colors)
    settings --user 0 delete system joystick_led_light_picker_color >/dev/null 2>&1 && [ "$(get joystick_led_light_picker_color)" = null ] || fail 'Cannot restore default stock colors'
   else put joystick_led_light_picker_color "$2" || fail 'Cannot restore stock colors';fi
  fi
+ # A null/default setting may not trigger an OEM RGB write. Replace the whole
+ # driver frame explicitly, including previously disabled channel groups.
+ colors=$(get joystick_led_light_picker_color);level=$(get led_light_brightness_percent);mask=$(get joystick_light_enabled)
+ [ "$colors" != null ] || colors='#2BE0D8,#2BE0D8'
+ [ "$level" != null ] || level=0.5
+ [ "$mask" != null ] || mask=0,0
+ printf '%s\n' "$colors" | awk '$0 !~ /^#[0-9A-Fa-f]+,#[0-9A-Fa-f]+$/ || length($0)!=15 || index($0,",")!=8 {exit 1}' || fail 'Invalid current stock colors'
+ printf '%s\n' "$level" | awk '$0 !~ /^[0-9]+([.][0-9]+)?$/ || $0+0>1 {exit 1}' || fail 'Invalid current stock brightness'
+ case "$mask" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid current stock enables';; esac
+ signature="$(get joystick_led_light_picker_color)|$(get led_light_brightness_percent)|$(get joystick_light_enabled)"
+ packed=''
+ for hex in "${colors%,*}" "${colors#*,}";do
+  hex=${hex#\#};r=${hex%????};g=${hex#??};g=${g%??};b=${hex#????}
+  rgb=$(awk -v r="$((0x$r))" -v g="$((0x$g))" -v b="$((0x$b))" -v f="$level" 'BEGIN {printf "%02X%02X%02X",r*f,g*f,b*f}') || fail 'Cannot build stock frame'
+  packed="$packed$rgb$rgb$rgb$rgb"
+ done
+ stage_segments
+ sleep 0.3
+ [ "$signature" = "$(get joystick_led_light_picker_color)|$(get led_light_brightness_percent)|$(get joystick_light_enabled)" ] || fail 'Stock settings changed during handoff; retry'
+ "$D/ring-segments" stock "$packed" "$mask" || fail 'Cannot restore full stock ring frame'
  echo 'OK Stock color retained'
  ;;
 light-ring-enable)

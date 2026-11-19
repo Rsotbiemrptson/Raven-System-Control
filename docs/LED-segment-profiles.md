@@ -34,3 +34,5 @@ It does not flash or replace firmware. Exact hardware register readback remains
 unavailable; recovery continues to use the protected stock-settings backup.
 
 When the last section of a stick is disabled, its stick toggle also switches off. Re-enabling a section switches its stick toggle back on. Rings with no effective output have their OEM enable flags cleared, preventing the all-disabled wake flash. Section colors and brightness are retained.
+
+Cold process restart preserves the owned frame. Android may restart the foreground service; opening Raven or tapping its LED tile also retries recovery if a background start was temporarily denied. This denial does not discard the saved pattern. Force-stop still requires opening Raven or applying a profile again. Stock takeover explicitly replaces the entire ring frame, including channels previously disabled by a segment profile.
