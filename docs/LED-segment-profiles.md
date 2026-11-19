@@ -9,8 +9,9 @@ Tap a section to use the existing color wheel, presets, hex field and brightness
 control. Complete six-digit hex colors apply to the live preview. Save commits
 the change; Cancel restores the previous lighting while Raven still owns it.
 Editing a whole stick changes its four sections together. Apply to all lights
-changes every section of both rings. The small switches choose which sections a
-saved profile enables; a disabled section retains its color and brightness.
+changes every section of both rings. The small switches apply immediately and choose which sections a
+saved profile enables. A disabled section retains its saved color and brightness
+and its RGB driver channels are disabled. Turning it back on restores those values.
 
 Save LED profile stores the eight section settings along with the ring switches.
 Selecting the profile in the app or Raven LED quick tile applies it. Existing

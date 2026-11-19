@@ -36,6 +36,7 @@ public final class MainActivity extends Activity {
  private String lightMask="";
  private final int[] lightBrightness={50,50,50,50};
  private boolean segmentMode;private JSONArray segmentData=new JSONArray();
+ private final SegmentSwitches segmentSwitches=new SegmentSwitches();
  private String tab="Fan",report="Hardware has not been checked. Profiles can be edited without a device.",zone="";
  private ArrayList<String> sensors=new ArrayList<>(),sensorNames=new ArrayList<>();
  private int off=45,on=50,full=75,low=50,high=70,manual=55,brightness=50;
@@ -356,6 +357,42 @@ public final class MainActivity extends Activity {
   String mask=DeviceState.get(this,"joystick_light_enabled");if(!mask.matches("[01],[01]"))mask="0,0";int ring=editing>=4?(editing-4)/4:editing;String enabled=every?"11":ring==0?"1"+mask.charAt(2):""+mask.charAt(0)+"1";
   return ProfileActions.ledRequest(candidate.put("ringSegments",a).put("lightMask",enabled+"00"),false);
  }
+ void styleSegmentButton(Button button,int index){JSONObject part=segmentData.optJSONObject(index);boolean enabled=part.optBoolean("enabled",true);int color=enabled?Color.parseColor("#"+part.optString("color","FF8000")):0xff101719;button.setBackground(box(color,10));button.setTextColor(enabled&&Color.luminance(color)>.5?Color.BLACK:enabled?Color.WHITE:MUTED);}
+ /** Merge quick switch gestures; apply each latest frame without changing peer sections. */
+ private final class SegmentSwitches {
+  volatile boolean running;
+  String packed,mask,pending,before,choice,editing;long revision;
+  String livePacked()throws Exception{
+   String owned=SegmentSession.packed(MainActivity.this);if(!owned.isEmpty())return owned;
+   String colors=DeviceState.get(MainActivity.this,"joystick_led_light_picker_color");if(colors.equals("null"))colors="#2BE0D8,#2BE0D8";
+   if(!colors.matches("#[A-Fa-f0-9]{6},#[A-Fa-f0-9]{6}"))throw new Exception("Cannot read the current ring colors");
+   String brightness=DeviceState.get(MainActivity.this,"led_light_brightness_percent");float level=brightness.equals("null")?.5f:Float.parseFloat(brightness);if(!Float.isFinite(level)||level<0||level>1)throw new Exception("Cannot read current LED brightness");
+   StringBuilder out=new StringBuilder();for(String hex:colors.split(",")){int rgb=Integer.parseInt(hex.substring(1),16);String scaled=String.format(Locale.ROOT,"%02X%02X%02X",(int)(((rgb>>16)&255)*level),(int)(((rgb>>8)&255)*level),(int)((rgb&255)*level));for(int i=0;i<4;i++)out.append(scaled);}return out.toString();
+  }
+  boolean change(int index,boolean on,Switch toggle){
+   boolean previous=segmentData.optJSONObject(index).optBoolean("enabled",true);if(previous==on)return false;
+   if((busy&&!running)||LedProfileService.isApplying()||!prefs.getBoolean("setupCompleteV2",false)){toggle.setChecked(previous);return false;}
+   try{
+    synchronized(this){
+     if(!running){before=ledJSON().toString();choice=ledChoice;editing=ledEditingName;packed=livePacked();mask=DeviceState.get(MainActivity.this,"joystick_light_enabled");if(!mask.matches("[01],[01]"))mask="0,0";}
+     JSONObject part=segmentData.getJSONObject(index);packed=SegmentColors.replace(packed,index,part.getString("color"),part.getInt("brightness"),on);
+     if(on){mask=index<4?"1,"+mask.charAt(2):mask.charAt(0)+",1";setProfileLight(index/4,true);}
+     part.put("enabled",on);markLEDsEdited();saveDraft();pending="light-segments "+packed+" "+mask;revision++;
+     if(!running){running=true;busy=true;if(ledProfilePicker!=null)ledProfilePicker.setEnabled(false);io.execute(this::drain);}
+    }
+    return true;
+   }catch(Exception e){toggle.setChecked(previous);message(e.getMessage());return false;}
+  }
+  void drain(){
+   String error=null;long applied;
+   while(true){String command;synchronized(this){if(pending==null){running=false;applied=revision;break;}command=pending;pending=null;}
+    try{Root.run(MainActivity.this,command);DeviceState.ownLED(MainActivity.this,"Custom LEDs");}
+    catch(Exception e){error=e.getMessage();synchronized(this){pending=null;running=false;applied=revision;}break;}
+   }
+   final String failure=error;final long finished=applied;
+   runOnUiThread(()->{if(finished!=revision)return;busy=false;if(isFinishing()||isDestroyed())return;if(ledProfilePicker!=null)ledProfilePicker.setEnabled(true);lastLED=DeviceState.ledSignature(MainActivity.this);if(failure!=null){try{loadLED(new JSONObject(before));ledChoice=choice;ledEditingName=editing;saveDraft();}catch(Exception ignored){}lightingStatus="Segment change failed";draw();message(failure);}else{if(ledProfilePicker!=null)ledProfilePicker.setSelection(0);lightingStatus="Segment switches applied";if(lightingStatusView!=null)lightingStatusView.setText(lightingStatus);}});
+  }
+ }
  void lights(){
   boolean four=Build.MODEL.equals("Odin2");
   String[] labels={"Left stick","Right stick","Left side","Right side"};
@@ -373,7 +410,7 @@ public final class MainActivity extends Activity {
    enabled.setContentDescription(labels[target]+" enabled in profile");
    enabled.setChecked(mask.charAt(target)=='1');
    light.addView(enabled,new LinearLayout.LayoutParams(-2,dp(48)));
-   if(segmentMode&&target<2){LinearLayout sections=new LinearLayout(this);for(int pos=0;pos<4;pos++){final int index=target*4+pos,edit=index+4;LinearLayout section=column();Button pick=control(RingSegments.POSITIONS[pos],()->{if(!busy)editLight(edit);},false);pick.setTextSize(11);pick.setContentDescription(lightLabel(edit));GradientDrawable chip=box(Color.parseColor("#"+lightColor(edit)),10);pick.setBackground(chip);pick.setTextColor(Color.luminance(Color.parseColor("#"+lightColor(edit)))>.5?Color.BLACK:Color.WHITE);section.addView(pick,new LinearLayout.LayoutParams(-1,dp(48)));Switch active=new Switch(this);tintSwitch(active);active.setChecked(segmentData.optJSONObject(index).optBoolean("enabled",true));active.setContentDescription(lightLabel(edit)+" enabled in profile");section.addView(active,new LinearLayout.LayoutParams(-2,dp(40)));active.setOnCheckedChangeListener((v,on)->{try{segmentData.getJSONObject(index).put("enabled",on);markLEDsEdited();saveDraft();}catch(Exception e){message(e.getMessage());}});sections.addView(section,new LinearLayout.LayoutParams(0,-2,1));}light.addView(sections);}
+   if(segmentMode&&target<2){LinearLayout sections=new LinearLayout(this);for(int pos=0;pos<4;pos++){final int index=target*4+pos,edit=index+4;LinearLayout section=column();Button pick=control(RingSegments.POSITIONS[pos],()->{if(!busy)editLight(edit);},false);pick.setTextSize(11);pick.setContentDescription(lightLabel(edit));GradientDrawable chip=box(Color.parseColor("#"+lightColor(edit)),10);pick.setBackground(chip);pick.setTextColor(Color.luminance(Color.parseColor("#"+lightColor(edit)))>.5?Color.BLACK:Color.WHITE);styleSegmentButton(pick,index);section.addView(pick,new LinearLayout.LayoutParams(-1,dp(48)));Switch active=new Switch(this);tintSwitch(active);active.setChecked(segmentData.optJSONObject(index).optBoolean("enabled",true));active.setContentDescription(lightLabel(edit)+" enabled in profile");section.addView(active,new LinearLayout.LayoutParams(-2,dp(40)));active.setOnCheckedChangeListener((v,on)->{if(segmentSwitches.change(index,on,active)){styleSegmentButton(pick,index);light.getChildAt(0).invalidate();}});sections.addView(section,new LinearLayout.LayoutParams(0,-2,1));}light.addView(sections);}
    enabled.setOnCheckedChangeListener((view,on)->{
     if(busy||LedProfileService.isApplying()){
      boolean previous=profileLightMask().charAt(target)=='1';
@@ -388,7 +425,7 @@ public final class MainActivity extends Activity {
    targets.addView(light,new LinearLayout.LayoutParams(0,-2,1));
   }
   c.addView(targets);
-  c.addView(text("Use the switches to choose which LEDs the profile turns on. Tap a light to edit its color. Saving a color turns that light on.",12,MUTED));
+  c.addView(text(segmentMode?"Segment switches apply immediately and retain each section’s color and brightness. Save a profile to keep your choices.":"Use the switches to choose which LEDs the profile turns on. Tap a light to edit its color. Saving a color turns that light on.",12,MUTED));
   lightingStatusView=text(lightingStatus,13,MUTED);c.addView(lightingStatusView);
   profileCard(false);
   action("Turn on LEDs",this::turnOnLEDs,true);
@@ -621,7 +658,7 @@ public final class MainActivity extends Activity {
   LEDTarget(int target,String label){super(MainActivity.this);this.target=target;this.label=label;setContentDescription("Select "+label);setFocusable(true);setClickable(true);setOnClickListener(v->{if(!busy){selectedLight=target;editLight(target);}});}
   @Override public CharSequence getAccessibilityClassName(){return Button.class.getName();}
   @Override protected void onDraw(Canvas c){super.onDraw(c);float x=getWidth()/2f,y=dp(29),radius=dp(18);paint.setStyle(Paint.Style.FILL);paint.setColor(0xff101719);if(target<2)c.drawCircle(x,y,radius+dp(6),paint);try{paint.setColor(Color.parseColor("#"+lightColor(target)));}catch(Exception e){paint.setColor(accent);}paint.setAlpha(lightBrightness[target]*255/100);
-   if(target<2){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(7));if(segmentMode){for(int pos=0;pos<4;pos++){JSONObject part=segmentData.optJSONObject(target*4+pos);paint.setColor(Color.parseColor("#"+part.optString("color","FF8000")));paint.setAlpha(part.optBoolean("enabled",true)?part.optInt("brightness",50)*255/100:30);c.drawArc(new RectF(x-radius,y-radius,x+radius,y+radius),180+pos*90+3,84,false,paint);}}else c.drawCircle(x,y,radius,paint);}else c.drawRoundRect(x-dp(5),y-radius-dp(6),x+dp(5),y+radius+dp(6),dp(5),dp(5),paint);
+   if(target<2){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(7));if(segmentMode){for(int pos=0;pos<4;pos++){JSONObject part=segmentData.optJSONObject(target*4+pos);paint.setColor(part.optBoolean("enabled",true)?Color.parseColor("#"+part.optString("color","FF8000")):0xff101719);paint.setAlpha(part.optBoolean("enabled",true)?part.optInt("brightness",50)*255/100:255);c.drawArc(new RectF(x-radius,y-radius,x+radius,y+radius),180+pos*90+3,84,false,paint);}}else c.drawCircle(x,y,radius,paint);}else c.drawRoundRect(x-dp(5),y-radius-dp(6),x+dp(5),y+radius+dp(6),dp(5),dp(5),paint);
    paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);paint.setColor(TEXT);paint.setTextSize(12*getResources().getDisplayMetrics().scaledDensity);paint.setTextAlign(Paint.Align.CENTER);float top=y+radius+dp(15);c.drawText(label,x,top-paint.getFontMetrics().top,paint);
   }
  }

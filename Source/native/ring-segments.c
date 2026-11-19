@@ -11,8 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-/* Physical TL, TR, BR, BL. Confirmed visually on both installed HTR3212 rings. */
-static const int groups[2][4]={{3,0,1,2},{0,1,2,3}};
+#include "segment-frame.h"
 static int fd[2]={-1,-1};
 static int syswrite(int side,const char *name,const char *value){char p[128];snprintf(p,sizeof(p),"/sys/class/sn3112%c/led/%s",side?'r':'l',name);int f=open(p,O_WRONLY|O_CLOEXEC|O_NOFOLLOW);if(f<0)return -1;size_t n=strlen(value);ssize_t w=write(f,value,n);close(f);return w==(ssize_t)n?0:-1;}
 static int reg(int side,uint8_t address,uint8_t value){uint8_t data[2]={address,value};struct i2c_msg m={.addr=0x3c,.len=2,.buf=data};struct i2c_rdwr_ioctl_data x={.msgs=&m,.nmsgs=1};return ioctl(fd[side],I2C_RDWR,&x)==1?0:-1;}
@@ -27,8 +26,9 @@ int main(int argc,char **argv){
  int failed=0;for(int s=0;s<2&&!failed;s++){
   if(argv[2][s*2]=='0'){failed=syswrite(s,"enable","0\n");continue;}
   if(syswrite(s,"enable","1\n")||reg(s,0,0)){failed=1;break;}
-  for(int pos=0;pos<4&&!failed;pos++)for(int c=0;c<3;c++){char h[3]={argv[1][s*24+pos*6+c*2],argv[1][s*24+pos*6+c*2+1],0};if(reg(s,0x0d+groups[s][pos]*3+c,(uint8_t)strtoul(h,NULL,16))){failed=1;break;}}
-  for(int c=0;c<12&&!failed;c++)if(reg(s,0x32+c,1))failed=1;
+  uint8_t pwm[12],controls[12];segment_frame(argv[1],s,pwm,controls);
+  for(int c=0;c<12&&!failed;c++)if(reg(s,0x0d+c,pwm[c]))failed=1;
+  for(int c=0;c<12&&!failed;c++)if(reg(s,0x32+c,controls[c]))failed=1;
   if(!failed&&(reg(s,0x25,0)||reg(s,0,1)))failed=1;
  }
  if(failed){syswrite(0,"enable","0\n");syswrite(1,"enable","0\n");puts("ERROR Segment write failed; both rings disabled");return 1;}

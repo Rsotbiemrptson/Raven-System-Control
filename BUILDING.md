@@ -43,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/Release staging/0.2.51-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.52-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -96,3 +96,10 @@ firmware, OEM extraction results and device evidence.
 The generator "Source/tests/performance_reentry_test.py" takes an output directory and creates Android-shell fixtures with all hardware paths remapped. Push the generated files into /data/local/tmp/raven-reentry-source and run init.sh only on an authorized Android test device with the required privileges. The fixture checks repeated custom/stock transitions, obsolete recovery tokens, preservation of a newer guard and conservative recovery without writing real hardware controls.
 
 The native ring helper is built from Source/native/ring-segments.c into the generated, ignored Source/assets/ring-segments asset. No prebuilt OEM binaries are required.
+
+The build also runs SegmentColorsTest.java for disabled output, saved color/brightness, accumulated edits and peer preservation. The native helper includes Source/native/segment-frame.h. Its register-frame logic can be tested without hardware on Linux/WSL:
+
+```sh
+cc -std=c11 -Wall -Wextra -Werror Source/tests/segment_frame_test.c -o /tmp/raven-segment-frame-test
+/tmp/raven-segment-frame-test
+```

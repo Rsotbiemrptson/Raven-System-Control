@@ -16,6 +16,6 @@ final class RingSegments {
  }
  static String packed(JSONObject j)throws Exception{
   JSONArray a=read(j);StringBuilder out=new StringBuilder();
-  for(int n=0;n<8;n++){JSONObject s=a.getJSONObject(n);int rgb=Integer.parseInt(s.getString("color"),16),level=s.getBoolean("enabled")?s.getInt("brightness"):0;out.append(String.format(java.util.Locale.ROOT,"%02X%02X%02X",((rgb>>16)&255)*level/100,((rgb>>8)&255)*level/100,(rgb&255)*level/100));}return out.toString();
+  for(int n=0;n<8;n++){JSONObject part=a.getJSONObject(n);out.append(SegmentColors.rgb(part.getString("color"),part.getInt("brightness"),part.getBoolean("enabled")));}return out.toString();
  }
 }

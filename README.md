@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.51-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.52-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.51-preview** · Package: `dev.odin.controls` · Version code: `76` · License: **GPL-3.0-only**
+**Current release: 0.2.52-preview** · Package: `dev.odin.controls` · Version code: `77` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.51-preview/Raven-System-Control-0.2.51-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.51-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.52-preview/Raven-System-Control-0.2.52-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.52-preview)
 
 **Preview release:** CPU/GPU tuning, Game Assistant integration and Odin 3 individual ring segments remain in preview.
 
@@ -16,7 +16,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 
 ## Features
 
-- Individual Odin 3 stick-ring segments: edit color, brightness and enabled state for each of the eight sections, with matching physical positions on both rings. Save them in LED profiles and apply them from the app or Raven LED tile. An event-driven service restores active segment patterns after standby and yields to stock LED changes. See [segment controls](docs/LED-segment-profiles.md).
+- Individual Odin 3 stick-ring segments: edit color, brightness and enabled state for each of the eight sections, with matching physical positions on both rings. Segment switches apply immediately, disable the selected RGB channels when off, and retain color and brightness for re-enabling. Save them in LED profiles and apply them from the app or Raven LED tile. An event-driven service restores active segment patterns after standby and yields to stock LED changes. See [segment controls](docs/LED-segment-profiles.md).
 
 - Performance tab on compatible Odin 3 devices: CPU-cluster and GPU minimum/maximum sliders with supported frequency steps, three protected stock modes and separate custom profiles. Stock settings can be edited as drafts but must be saved under a custom name.
 - Custom performance profiles use a foreground safety monitor and independent watchdog. At 78°C, invalid sensors or monitoring loss, recovery lowers ceilings to conservative limits; stock restoration after recovery requires valid temperatures below 60°C. Platform thermal protections remain enabled.
@@ -89,6 +89,8 @@ The 0.2.49-preview Odin 3 checks covered all three stock performance modes, guar
 The 0.2.50-preview update fixes late CPU-session cleanup changing restored stock controls back to read-only, which could block the next custom profile when reentering a game. Cleanup for a disarmed or replaced token now leaves the current controls unchanged. Live Odin 3 firmware 189 r2 checks passed for repeated game entry/exit, custom fan/LED/CPU overrides, restoration of active Raven global profiles, and Follow global selections. Isolated and live recovery checks confirm that current-session safety recovery still applies conservative limits and stock permissions remain intact afterward. Original saved profiles, settings and recovery backups were retained. These new checks were performed on Odin 3 with the compatible custom Game Assistant; Odin 2 regression checks were completed on 0.2.49-preview.
 
 The 0.2.51-preview update adds mapped individual stick-ring segments on compatible Odin 3 hardware. Live single-section previews, Save/profile reload, off/on, standby restoration, stock takeover, the actual Raven LED chooser and separate left-ring switching were checked on Raven firmware 189 r2. Existing profiles and the recovery backup were preserved; test profiles were removed and both rings restored off. The compact Power spacing is included in the app fallback chooser; the matching firmware-hosted popup change is prepared for a later firmware update.
+
+The 0.2.52-preview update makes individual segment switches apply live, merges successive switch changes, and preserves neighboring sections. Disabled sections now have zero PWM and their RGB driver channels disabled; their saved colors and brightness return when switched on. Live on/off and rapid-switch checks passed on Odin 3 firmware 189 r2. Original lighting, the four existing saved profiles and the recovery backup were preserved.
 
 ## License and attribution
 
