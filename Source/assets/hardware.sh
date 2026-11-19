@@ -436,15 +436,31 @@ light-segments-probe|light-segments|light-segments-sleep)
  # Let that transition settle before replacing the PWM channels; picker gestures
  # with an unchanged mask avoid both the stock write and this transition delay.
  old_mask=$(get joystick_light_enabled)
- expected_colors=$(get joystick_led_light_picker_color)
+ old_colors=$(get joystick_led_light_picker_color)
+ expected_colors='#000000,#000000'
+ if [ "$old_colors" != "$expected_colors" ]; then
+  put joystick_led_light_picker_color "$expected_colors" || fail 'Cannot protect segment wake color'
+ fi
  expected_brightness=$(get led_light_brightness_percent)
  if [ "$old_mask" != "$3" ]; then
   put joystick_light_enabled "$3" || fail 'Cannot set ring enables'
-  sleep 0.25
  fi
+ if [ "$old_mask" != "$3" ] || [ "$old_colors" != "$expected_colors" ]; then sleep 0.25;fi
  [ "$(get joystick_light_enabled)" = "$3" ] && [ "$(get joystick_led_light_picker_color)" = "$expected_colors" ] && [ "$(get led_light_brightness_percent)" = "$expected_brightness" ] || fail 'Stock lighting changed; retry the segment profile'
  result=$("$D/ring-segments" "$2" "$3") || { put joystick_light_enabled '0,0' >/dev/null;fail 'Segment write failed; lights turned off'; }
  echo "$result"
+ ;;
+light-stock-colors)
+ [ "$lighting" = rings ] && [ "$#" -eq 2 ] || fail 'Odin 3 stock color required'
+ if [ "$2" != null ]; then
+  printf '%s\n' "$2" | awk '$0 !~ /^#[0-9A-Fa-f]+,#[0-9A-Fa-f]+$/ || length($0)!=15 || index($0,",")!=8 {exit 1}' || fail 'Invalid stock ring colors'
+ fi
+ if [ "$(get joystick_led_light_picker_color)" = '#000000,#000000' ]; then
+  if [ "$2" = null ]; then
+   settings --user 0 delete system joystick_led_light_picker_color >/dev/null 2>&1 && [ "$(get joystick_led_light_picker_color)" = null ] || fail 'Cannot restore default stock colors'
+  else put joystick_led_light_picker_color "$2" || fail 'Cannot restore stock colors';fi
+ fi
+ echo 'OK Stock color retained'
  ;;
 light-ring-enable)
  [ "$lighting" = rings ] && [ "$#" -eq 3 ] || fail 'Odin 3 ring settings required'

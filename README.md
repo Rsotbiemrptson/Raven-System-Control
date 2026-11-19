@@ -1,18 +1,20 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.53-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.54-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.53-preview** · Package: `dev.odin.controls` · Version code: `78` · License: **GPL-3.0-only**
+**Current release: 0.2.54-preview** · Package: `dev.odin.controls` · Version code: `79` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.53-preview/Raven-System-Control-0.2.53-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.53-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.54-preview/Raven-System-Control-0.2.54-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.54-preview)
 
 **Preview release:** CPU/GPU tuning, Game Assistant integration and Odin 3 individual ring segments remain in preview.
 
 **Hardware tested:** Odin 2 firmware 400 and Odin 3 firmware 1.0.0.187; the current CPU/GPU, fan and recovery changes were tested on Raven Odin 3 firmware 1.0.0.189 r2.
+
+0.2.54-preview prevents the brief stock teal flash when a saved Odin 3 segment profile returns after standby. Mixed-disabled profiles were checked from both the app and Raven LED tile, together with all-segments-off wake behavior. Original lighting, saved profiles and recovery data were restored and verified.
 
 ## Features
 

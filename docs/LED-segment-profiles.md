@@ -22,8 +22,11 @@ preserves the optional eight-entry `ringSegments` array in physical position ord
 While a segment pattern is active, a notification accompanies the service that
 restores the colors after wake. It uses screen and settings events, without a
 continuous polling loop. Changing stock LED settings yields control to the stock
-driver; Raven does not keep overwriting that choice. With both rings off the
-service stops. Force-stopping Raven prevents its wake restoration until Raven is
+driver; Raven does not keep overwriting that choice. While Raven owns a segment
+profile, the stock wake color is temporarily dark so it cannot flash teal before
+the pattern returns. The original stock color is retained and restored when
+control returns to stock. The event-driven service also remains available with
+both rings off to handle that handoff. Force-stopping Raven prevents its wake restoration until Raven is
 opened or a profile is applied again.
 
 The feature uses the existing privileged service and detected HTR3212 interfaces.

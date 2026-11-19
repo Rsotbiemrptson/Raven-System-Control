@@ -42,6 +42,8 @@ final class Root {
   }
   if(args.startsWith("light-segments ")){String[] fields=args.split(" ");if(fields.length!=3)throw new IOException("Invalid segment request");args="light-segments "+fields[1]+" "+SegmentColors.effectiveMask(fields[1],fields[2]);}
   File h=helper(c);
+  if(args.startsWith("light-ring "))restoreStockColors(c,h);
+  if(args.startsWith("light-segments "))SegmentSession.captureStock(c);
   String command="sh "+q(h.getPath())+" "+args;
   // The OEM command bridge returns only one stdout line. Encode the structured
   // performance readout through the existing read path to retain every field.
@@ -63,9 +65,27 @@ final class Root {
      SegmentSession.remember(c,previous);
     }else if(!args.equals("light-segments-probe")&&!args.equals("light-segments-sleep"))SegmentSession.forget(c);
    }
+  }catch(Exception e){
+   if(args.startsWith("light-segments ")){try{restoreStockColors(c,h);SegmentSession.forget(c);}catch(Exception recovery){e.addSuppressed(recovery);}}
+   throw e;
   }finally{if(led)SegmentSession.writing=false;}
+  if(!result.startsWith("OK")&&args.startsWith("light-segments ")){restoreStockColors(c,h);SegmentSession.forget(c);}
   if(!result.startsWith("OK"))throw new IOException(result.isEmpty()?"No helper response; privileged access may be restricted":result);
   return result;
+ }
+ // Restore only our dark fallback; never replace an explicit stock color change.
+ static void restoreStockColors(Context c,File h)throws Exception {
+  String colors=c.getSharedPreferences("profile",0).getString("segmentStockColors",null);
+  if(colors==null)return;
+  String result=call("sh "+q(h.getPath())+" light-stock-colors "+q(colors));
+  if(!result.startsWith("OK"))throw new IOException(result);
+ }
+ static synchronized void releaseSegments(Context c){
+  if(SegmentSession.owned(c))return;
+  SegmentSession.writing=true;
+  try{restoreStockColors(c,helper(c));SegmentSession.forget(c);DeviceState.refreshTiles(c);}
+  catch(Exception e){android.util.Log.e("RavenSegments","Cannot restore stock color; original retained",e);}
+  finally{SegmentSession.writing=false;}
  }
  static synchronized void resumeSegments(Context c)throws Exception {
   if(!c.getSystemService(PowerManager.class).isInteractive())return;
