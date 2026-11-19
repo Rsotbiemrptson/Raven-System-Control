@@ -41,7 +41,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/0.2.49-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/0.2.50-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -88,3 +88,7 @@ firmware, OEM extraction results and device evidence.
 ## Firmware compatibility fixtures
 
 `python3 Source/tests/firmware_compatibility_test.py <output-directory>` generates an Android-shell fixture with all hardware paths remapped into a fresh temporary test tree. Run the generated `compatibility.sh` only on an authorized Android test device with the required privileges. It exercises platform/table compatibility and immutable backup validation without writing real hardware controls. This fixture differs from the host-only `hardware_test.py` harness.
+
+## Performance reentry fixtures
+
+The generator "Source/tests/performance_reentry_test.py" takes an output directory and creates Android-shell fixtures with all hardware paths remapped. Push the generated files into /data/local/tmp/raven-reentry-source and run init.sh only on an authorized Android test device with the required privileges. The fixture checks repeated custom/stock transitions, obsolete recovery tokens, preservation of a newer guard and conservative recovery without writing real hardware controls.

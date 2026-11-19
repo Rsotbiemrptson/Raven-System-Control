@@ -276,10 +276,21 @@ performance_main() {
  # Android mksh marks persistent descriptors close-on-exec. Explicitly pass
  # this descriptor to flock while retaining the same open file in this shell.
  flock -n 9 9>&9 || fail 'Another performance change is in progress. Try again when it finishes.'
+ [ ! -L "$perf_folder" ] || fail 'Invalid performance journal'
+ # A service from the previous profile can finish after Stock has disarmed
+ # its token. Such cleanup must not create a new ownership journal or seal
+ # the stock controls in the EXIT trap. Check again while holding the lock.
+ if [ -n "$perf_recover_reason" ] && [ "$perf_bootstrap" = 0 ]; then
+  if [ "$(perf_read "$perf_folder/guard-token" 2>/dev/null)" != "$perf_guard_token" ] ||
+     ! guard_current_boot || [ "$(guard_status)" = stopped ]; then
+   flock -u 9 9>&9 || true
+   echo 'OK stopped'
+   return 0
+  fi
+ fi
  perf_transaction=0
  trap 'perf_finish' 0
  trap 'exit 1' HUP INT TERM
- [ ! -L "$perf_folder" ] || fail 'Invalid performance journal'
  mkdir -p "$perf_folder" && chmod 700 "$perf_folder" || fail 'Cannot create performance journal'
  for perf_file in before before.pending original original.pending permissions permissions.pending before-permissions before-permissions.pending before-gpu-permissions before-gpu-permissions.pending ownership ownership.pending; do [ ! -L "$perf_folder/$perf_file" ] || fail 'Invalid performance journal file';done
  perf_save_ownership || fail 'Cannot preserve frequency-control ownership'

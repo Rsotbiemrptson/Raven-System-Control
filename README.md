@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.49-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.50-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.49-preview** · Package: `dev.odin.controls` · Version code: `74` · License: **GPL-3.0-only**
+**Current release: 0.2.50-preview** · Package: `dev.odin.controls` · Version code: `75` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.49-preview/Raven-System-Control-0.2.49-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.49-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.50-preview/Raven-System-Control-0.2.50-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.50-preview)
 
 **Preview release:** CPU/GPU tuning and Game Assistant integration remain in preview.
 
@@ -83,6 +83,8 @@ The build runs fan-policy, editable-curve and 4,096 appearance-contrast checks, 
 The APK retains the previous release's signing identity, so it can update 0.1.6-preview in place. A build signed with your own development key cannot update the published APK directly.
 
 The 0.2.49-preview Odin 3 checks covered all three stock performance modes, guarded conservative CPU/GPU caps, conservative recovery, Quiet/Smart/Sport, manual and curve cooling, Smart handoff, and the firmware-change notice. Saved profiles/settings and the original recovery backup were preserved. Compatibility fixtures accept matching interfaces across firmware labels and reject changed topology, GPU ordering, PWM periods and corrupted backups.
+
+The 0.2.50-preview update fixes late CPU-session cleanup changing restored stock controls back to read-only, which could block the next custom profile when reentering a game. Cleanup for a disarmed or replaced token now leaves the current controls unchanged. Live Odin 3 firmware 189 r2 checks passed for repeated game entry/exit, custom fan/LED/CPU overrides, restoration of active Raven global profiles, and Follow global selections. Isolated and live recovery checks confirm that current-session safety recovery still applies conservative limits and stock permissions remain intact afterward. Original saved profiles, settings and recovery backups were retained. These new checks were performed on Odin 3 with the compatible custom Game Assistant; Odin 2 regression checks were completed on 0.2.49-preview.
 
 ## License and attribution
 
