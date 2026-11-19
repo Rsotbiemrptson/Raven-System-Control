@@ -33,6 +33,14 @@ final class Root {
   return new File(dir,"hardware.sh");
  }
  static synchronized String run(Context c,String args)throws Exception {
+  String retained=SegmentSession.packed(c);
+  if(!retained.isEmpty()&&args.startsWith("light-ring-enable ")){
+   String[] fields=args.split(" ");String mask=DeviceState.get(c,"joystick_light_enabled");
+   if(fields.length!=3||!fields[1].matches("left|right|both")||!fields[2].matches("[01]")||!mask.matches("[01],[01]"))throw new IOException("Invalid ring power request");
+   mask=fields[1].equals("left")?fields[2]+","+mask.charAt(2):fields[1].equals("right")?mask.charAt(0)+","+fields[2]:fields[2]+","+fields[2];
+   args="light-segments "+retained+" "+mask;
+  }
+  if(args.startsWith("light-segments ")){String[] fields=args.split(" ");if(fields.length!=3)throw new IOException("Invalid segment request");args="light-segments "+fields[1]+" "+SegmentColors.effectiveMask(fields[1],fields[2]);}
   File h=helper(c);
   String command="sh "+q(h.getPath())+" "+args;
   // The OEM command bridge returns only one stdout line. Encode the structured

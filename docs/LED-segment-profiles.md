@@ -29,3 +29,5 @@ opened or a profile is applied again.
 The feature uses the existing privileged service and detected HTR3212 interfaces.
 It does not flash or replace firmware. Exact hardware register readback remains
 unavailable; recovery continues to use the protected stock-settings backup.
+
+When the last section of a stick is disabled, its stick toggle also switches off. Re-enabling a section switches its stick toggle back on. Rings with no effective output have their OEM enable flags cleared, preventing the all-disabled wake flash. Section colors and brightness are retained.

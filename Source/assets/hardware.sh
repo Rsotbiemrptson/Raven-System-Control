@@ -424,6 +424,12 @@ light-segments-probe|light-segments|light-segments-sleep)
  [ "$#" -eq 3 ] && [ "${#2}" -eq 48 ] || fail 'Invalid segment colors'
  case "$2" in *[!0-9A-Fa-f]*) fail 'Invalid segment colors';; esac
  case "$3" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
+ # Empty rings must remain off in OEM wake settings, not merely in PWM output.
+ left_rgb=$(printf '%s' "$2" | cut -c1-24);right_rgb=$(printf '%s' "$2" | cut -c25-48)
+ left_on=${3%,*};right_on=${3#*,}
+ [ "$left_rgb" != 000000000000000000000000 ] || left_on=0
+ [ "$right_rgb" != 000000000000000000000000 ] || right_on=0
+ set -- "$1" "$2" "$left_on,$right_on"
  "$D/ring-segments" probe >/dev/null || fail 'Compatible segment controllers unavailable'
  save_lighting
   # Enabling the stock mask queues asynchronous whole-ring driver writes.

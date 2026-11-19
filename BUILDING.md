@@ -43,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/Release staging/0.2.52-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.53-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -103,3 +103,7 @@ The build also runs SegmentColorsTest.java for disabled output, saved color/brig
 cc -std=c11 -Wall -Wextra -Werror Source/tests/segment_frame_test.c -o /tmp/raven-segment-frame-test
 /tmp/raven-segment-frame-test
 ```
+
+Run the isolated stock-mask regression with python3 Source/tests/segment_mask_test.py. It exercises the real shell branch against temporary settings and a fake native writer, covering empty rings, mixed output, explicit off and original-snapshot preservation. SegmentColorsTest also checks the matching Java mask rules.
+
+Before publishing changes to segment behavior, test both mixed disabled sections and all sections disabled through standby/wake on the exact candidate APK. Observe the first instant of wake for flashes, verify stick-toggle state, and restore original lighting, profiles and recovery data. Live on/off tests alone do not cover standby.

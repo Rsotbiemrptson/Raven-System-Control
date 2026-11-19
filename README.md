@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.52-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.53-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.52-preview** · Package: `dev.odin.controls` · Version code: `77` · License: **GPL-3.0-only**
+**Current release: 0.2.53-preview** · Package: `dev.odin.controls` · Version code: `78` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.52-preview/Raven-System-Control-0.2.52-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.52-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.53-preview/Raven-System-Control-0.2.53-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.53-preview)
 
 **Preview release:** CPU/GPU tuning, Game Assistant integration and Odin 3 individual ring segments remain in preview.
 
@@ -91,6 +91,8 @@ The 0.2.50-preview update fixes late CPU-session cleanup changing restored stock
 The 0.2.51-preview update adds mapped individual stick-ring segments on compatible Odin 3 hardware. Live single-section previews, Save/profile reload, off/on, standby restoration, stock takeover, the actual Raven LED chooser and separate left-ring switching were checked on Raven firmware 189 r2. Existing profiles and the recovery backup were preserved; test profiles were removed and both rings restored off. The compact Power spacing is included in the app fallback chooser; the matching firmware-hosted popup change is prepared for a later firmware update.
 
 The 0.2.52-preview update makes individual segment switches apply live, merges successive switch changes, and preserves neighboring sections. Disabled sections now have zero PWM and their RGB driver channels disabled; their saved colors and brightness return when switched on. Live on/off and rapid-switch checks passed on Odin 3 firmware 189 r2. Original lighting, the four existing saved profiles and the recovery backup were preserved.
+
+The 0.2.53-preview update fixes the brief wake flash when all ring sections are disabled by also clearing the stock ring-enable flags for empty rings. Each stick toggle switches off with its last enabled section and back on when a section is re-enabled. Both mixed-disabled and all-disabled standby/wake checks passed without flashes on the exact final APK on Odin 3 firmware 189 r2 before publication. Original rainbow lighting, all four saved profiles and the recovery backup were verified restored.
 
 ## License and attribution
 
