@@ -19,3 +19,6 @@ __pycache__/
 
 # Owner removed the fan screenshot; do not republish it.
 /docs/images/app.png
+
+# Generated ARM64 helper; rebuilt from the included C source.
+/Source/assets/ring-segments

@@ -62,7 +62,8 @@ public class FanTile extends TileService {
   }
   int dp(int n){return Math.round(n*getResources().getDisplayMetrics().density);}
   void add(android.view.View control){
-   android.widget.LinearLayout.LayoutParams size=new android.widget.LinearLayout.LayoutParams(0,dp(48),1);
+   android.widget.LinearLayout.LayoutParams size=new android.widget.LinearLayout.LayoutParams(control==power?-2:0,dp(48),control==power?0:1);
+   if(control==power)size.setMarginEnd(dp(12));
    if(row.getChildCount()>0)size.setMarginStart(dp(8));
    row.addView(control,size);
   }

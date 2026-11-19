@@ -11,6 +11,7 @@ runs the fan-policy tests, aligns the APK, signs it and verifies the result.
 - Android platform android-35/android.jar.
 - Android build tools providing aapt.exe, zipalign.exe, lib/d8.jar and
   lib/apksigner.jar. The build uses the Workbench toolchain layout below.
+- Android NDK r30 with the Windows x86_64 LLVM toolchain (clang.exe), used to build the ARM64 ring-segment helper.
 - Optional WSL Ubuntu with Python 3 for mocked shell integration tests.
 
 ## Toolchain layout
@@ -21,6 +22,7 @@ Choose a workspace directory and arrange these tools beneath it:
 <workspace>/
   Toolchain/
     Java/bin/{javac,java,jar,keytool}.exe
+    android-ndk-r30/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe
     Android-SDK/platforms/android-35/android.jar
     Android-Build-Tools/aapt.exe
     Android-Build-Tools/zipalign.exe
@@ -41,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/0.2.50-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.51-preview/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -92,3 +94,5 @@ firmware, OEM extraction results and device evidence.
 ## Performance reentry fixtures
 
 The generator "Source/tests/performance_reentry_test.py" takes an output directory and creates Android-shell fixtures with all hardware paths remapped. Push the generated files into /data/local/tmp/raven-reentry-source and run init.sh only on an authorized Android test device with the required privileges. The fixture checks repeated custom/stock transitions, obsolete recovery tokens, preservation of a newer guard and conservative recovery without writing real hardware controls.
+
+The native ring helper is built from Source/native/ring-segments.c into the generated, ignored Source/assets/ring-segments asset. No prebuilt OEM binaries are required.

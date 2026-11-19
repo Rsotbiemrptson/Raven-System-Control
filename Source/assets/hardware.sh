@@ -412,6 +412,34 @@ stop)
 status)
  if [ -d "$R" ]; then echo "OK $(cat "$R/status" 2>/dev/null)";else echo "OK Inactive | $(cat "$D/last-result" 2>/dev/null)";fi
  ;;
+light-segments-probe|light-segments|light-segments-sleep)
+ [ "$lighting" = rings ] || fail 'Individual ring segments require compatible Odin 3 controllers'
+ helper=${0%/*}/ring-segments
+ [ -f "$helper" ] && [ ! -L "$helper" ] || fail 'Segment helper missing'
+ mkdir -p "$D" && chmod 700 "$D" || fail 'Cannot protect segment helper'
+ [ ! -L "$D/ring-segments" ] && [ ! -L "$D/ring-segments.new" ] || fail 'Unsafe segment helper path'
+ cp "$helper" "$D/ring-segments.new" && chmod 700 "$D/ring-segments.new" && mv "$D/ring-segments.new" "$D/ring-segments" || fail 'Cannot stage segment helper'
+ if [ "$OP" = light-segments-probe ]; then "$D/ring-segments" probe;exit $?;fi
+ if [ "$OP" = light-segments-sleep ]; then "$D/ring-segments" 000000000000000000000000000000000000000000000000 0,0;exit $?;fi
+ [ "$#" -eq 3 ] && [ "${#2}" -eq 48 ] || fail 'Invalid segment colors'
+ case "$2" in *[!0-9A-Fa-f]*) fail 'Invalid segment colors';; esac
+ case "$3" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
+ "$D/ring-segments" probe >/dev/null || fail 'Compatible segment controllers unavailable'
+ save_lighting
+  # Enabling the stock mask queues asynchronous whole-ring driver writes.
+ # Let that transition settle before replacing the PWM channels; picker gestures
+ # with an unchanged mask avoid both the stock write and this transition delay.
+ old_mask=$(get joystick_light_enabled)
+ expected_colors=$(get joystick_led_light_picker_color)
+ expected_brightness=$(get led_light_brightness_percent)
+ if [ "$old_mask" != "$3" ]; then
+  put joystick_light_enabled "$3" || fail 'Cannot set ring enables'
+  sleep 0.25
+ fi
+ [ "$(get joystick_light_enabled)" = "$3" ] && [ "$(get joystick_led_light_picker_color)" = "$expected_colors" ] && [ "$(get led_light_brightness_percent)" = "$expected_brightness" ] || fail 'Stock lighting changed; retry the segment profile'
+ result=$("$D/ring-segments" "$2" "$3") || { put joystick_light_enabled '0,0' >/dev/null;fail 'Segment write failed; lights turned off'; }
+ echo "$result"
+ ;;
 light-ring-enable)
  [ "$lighting" = rings ] && [ "$#" -eq 3 ] || fail 'Odin 3 ring settings required'
  case "$3" in 0|1) ;; *) fail 'Invalid enable value';; esac
