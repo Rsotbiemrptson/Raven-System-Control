@@ -554,7 +554,7 @@ light)
  [ "$#" -ge 4 ] && [ "$#" -le 6 ] || fail 'Invalid lighting request'
  left=$2;right=$3;brightness=$4;side=${5:-keep};mask=${6:-1,1}
  case "$mask" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
- [ "$#" -ne 6 ] || [ "$lighting" = rings ] || fail 'Ring mask requires Odin 3' 
+ [ "$#" -ne 6 ] || [ "$lighting" = rings ] || fail 'Ring mask requires Odin 3'
  case "$side" in keep|on|off) ;; *) fail 'Invalid side-light request';; esac
  [ "$lighting" = shared ] || [ "$side" = keep ] || fail 'Side-light control is supported on Odin 2 firmware 400 only'
  [ "${#left}" = 6 ] && [ "${#right}" = 6 ] || fail 'Use six-digit RGB colors'

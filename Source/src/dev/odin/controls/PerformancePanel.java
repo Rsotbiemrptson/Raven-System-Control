@@ -346,18 +346,6 @@ final class PerformancePanel {
             host.guidedSetup();
             return;
         }
-        if (save || !PerformanceProfile.reserved(name)) {
-            if (Build.VERSION.SDK_INT >= 33 && host.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                host.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 6);
-                return;
-            }
-            if (!PerformanceService.notificationsAvailable(host)) {
-                host.dialogBuilder().setMessage("Enable Performance safety notifications to keep guard and recovery status visible.")
-                    .setPositiveButton("Notification settings", (d, w) -> host.startActivity(new android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, host.getPackageName())))
-                    .setNegativeButton("Cancel", null).show();
-                return;
-            }
-        }
         try {
             selected.validate(status.frequencies);
         } catch (Exception e) {
@@ -388,7 +376,7 @@ final class PerformancePanel {
                 GameProfileSession.globalChoice(host,"cpu");
                 PerformanceOwnership.begin(host);
                 if (request.startsWith("performance-apply ")) PerformanceService.apply(host, request.substring("performance-apply ".length()));
-                else { Root.run(host, request); host.getSystemService(android.app.NotificationManager.class).cancel(3); }
+                else { Root.run(host, request); host.getSystemService(android.app.NotificationManager.class).cancel(3);ControlNotifications.clear(host,ControlNotifications.CPU_ALERT); }
             } catch (Exception e) {
                 failure = e.getMessage();
             }

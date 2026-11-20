@@ -1,14 +1,14 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.55-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.56-preview" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.55-preview** · Package: `dev.odin.controls` · Version code: `80` · License: **GPL-3.0-only**
+**Current release: 0.2.56-preview** · Package: `dev.odin.controls` · Version code: `81` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.55-preview/Raven-System-Control-0.2.55-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.55-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.56-preview/Raven-System-Control-0.2.56-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.56-preview)
 
 **Preview release:** CPU/GPU tuning, Game Assistant integration and Odin 3 individual ring segments remain in preview.
 
@@ -17,6 +17,8 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 0.2.54-preview prevents the brief stock teal flash when a saved Odin 3 segment profile returns after standby. Mixed-disabled profiles were checked from both the app and Raven LED tile, together with all-segments-off wake behavior. Original lighting, saved profiles and recovery data were restored and verified.
 
 0.2.55-preview preserves active segment profiles through a cold Raven process restart and restores complete stock ring colors when the OEM LED tile takes over. Cold restart, saved-profile standby, stock takeover and stock standby, and all-segments-off wake checks passed on Odin 3 before publication; original lighting and recovery data were restored.
+
+0.2.56-preview adds separate notification controls for fan, LED and CPU/GPU status, with recovery alerts kept separate. Custom profiles continue working when routine status notifications are hidden; foreground safety monitoring and independent recovery safeguards remain enabled. Hidden-status fan/CPU recovery and saved-segment standby checks passed on Raven Odin 3 firmware 1.0.0.190; original settings, lighting and recovery backups were preserved.
 
 ## Features
 
@@ -37,7 +39,7 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 - Separate analog/side-light switches in the Odin 2 LED tile chooser. Switch controls and selection indicators follow the app accent; popup titles, profile names and light-switch labels use neutral text. Redundant on/off buttons are removed from the Fan chooser and Odin 2 LED chooser.
 - Responsive analog/side switching: one switch no longer locks the other. Shared-color profiles skip the extra observer wait; independent colors retain it to preserve per-LED brightness and color. Group on/off settings persist through standby.
 - Orange Raven icon with flat #1F2228 charcoal and rounded corners matching Raven Backup, shared with GitHub, adjustable accent, light/dark appearance and compact About popup.
-- First-launch guided setup with a fan-control warning, an explanation and permission prompt for custom fan notifications, and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
+- First-launch guided setup with a fan-control warning, an optional permission prompt for recovery alerts, and an option to skip fan control. Original recovery backups are retained outside app storage. Settings → Advanced contains setup and recovery actions.
 
 ## Device support
 
@@ -69,7 +71,7 @@ Odin 2 above-shade rendering and forced helper-exit/timeout fallbacks were teste
 ## Getting started
 
 1. Install the APK on the supported device and complete the first-launch guided setup. Fan control can be skipped.
-2. Allow fan notifications before applying a custom curve. Begin with a short supervised test; **Use Smart** hands control to OEM Smart cooling.
+2. Status notifications can be hidden or silenced separately in **Settings → Notifications**; keep **Recovery alerts** enabled for warnings. Begin with a short supervised test; **Use Smart** hands control to OEM Smart cooling.
 3. In **LEDs**, select a zone, choose a color/brightness and press **Save**. On Odin 2, Save applies the selected light immediately. On Odin 3, color and brightness edits preview live; Save retains the selected edit. Each ring can also be enabled or disabled in a saved profile. **Apply to all lights** applies it to all supported zones.
 4. Save fan and LED profiles in their respective tabs. Add **Raven Fan** and **Raven LED** from Android's Quick Settings tile editor.
 5. Use **Settings → Advanced → Rerun Guided Setup** to repeat checks. Recovery actions are in the same section.

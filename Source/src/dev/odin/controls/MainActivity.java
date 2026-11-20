@@ -133,8 +133,13 @@ public final class MainActivity extends Activity {
  LinearLayout advancedGroup(){
   LinearLayout card=card("Advanced","");TextView title=(TextView)card.getChildAt(0);card.removeViewAt(0);LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));final boolean[] opened={prefs.getBoolean("advancedExpanded",true)};View chevron=new View(this){final Paint paint=new Paint(3);@Override protected void onDraw(Canvas canvas){float x=getWidth()/2f,y=getHeight()/2f,dy=dp(opened[0]?-3:3);paint.setColor(MUTED);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(2));paint.setStrokeCap(Paint.Cap.ROUND);Path path=new Path();path.moveTo(x-dp(5),y-dy);path.lineTo(x,y+dy);path.lineTo(x+dp(5),y-dy);canvas.drawPath(path,paint);}};header.addView(chevron,new LinearLayout.LayoutParams(dp(32),dp(44)));card.addView(header,0);LinearLayout content=column();content.setVisibility(opened[0]?View.VISIBLE:View.GONE);card.addView(content);header.setContentDescription("Advanced settings");header.setStateDescription(opened[0]?"Expanded":"Collapsed");header.setFocusable(true);header.setOnClickListener(v->{opened[0]=!opened[0];prefs.edit().putBoolean("advancedExpanded",opened[0]).apply();content.setVisibility(opened[0]?View.VISIBLE:View.GONE);header.setStateDescription(opened[0]?"Expanded":"Collapsed");chevron.invalidate();});header.setAccessibilityDelegate(new View.AccessibilityDelegate(){@Override public void onInitializeAccessibilityNodeInfo(View host,android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(host,info);info.setClassName(Button.class.getName());info.setCheckable(true);info.setChecked(opened[0]);}});return content;
  }
+ void notificationOptions(String id){startActivityForResult(ControlNotifications.settings(this,id),8);}
  void settings(){
   LinearLayout c=card("Appearance","");LinearLayout row=new LinearLayout(this);Button color=control("Accent color · "+String.format(Locale.ROOT,"#%06X",accent&0xffffff),this::chooseAccent,true);Button mode=control(lightTheme?"Light mode":"Dark mode",()->dialogBuilder().setTitle("Appearance").setItems(new String[]{"Light","Dark"},(d,n)->{saveDraft();prefs.edit().putString("appearanceMode",n==0?"light":"dark").apply();recreate();}).show(),true);row.addView(color,new LinearLayout.LayoutParams(0,dp(44),1));LinearLayout.LayoutParams space=new LinearLayout.LayoutParams(0,dp(44),1);space.setMargins(dp(8),0,0,0);row.addView(mode,space);c.addView(row);c.addView(text("Choose your app accent and light or dark appearance. LED colors stay unchanged.",12,MUTED));
+  c=card("Notifications","");
+  advancedPair(c,"Fan status",ControlNotifications.visibility(this,ControlNotifications.FAN)+" · Show, silence or hide fan status.",()->notificationOptions(ControlNotifications.FAN),"LED status",ControlNotifications.visibility(this,ControlNotifications.LED)+" · Show, silence or hide LED status.",()->notificationOptions(ControlNotifications.LED));
+  advancedPair(c,"CPU/GPU status",ControlNotifications.visibility(this,ControlNotifications.CPU)+" · Show, silence or hide performance status.",()->notificationOptions(ControlNotifications.CPU),"Recovery alerts",ControlNotifications.visibility(this,ControlNotifications.RECOVERY)+" · Separate warnings when control needs attention.",()->notificationOptions(ControlNotifications.RECOVERY));
+  c.addView(text("Hidden status does not stop profiles or safeguards. Keep recovery alerts enabled to receive warnings. Android may still show Raven under Active apps.",12,MUTED));
   c=advancedGroup();if(firmwareRecoveryPending)c.addView(text("Firmware changed. Rerun Guided Setup to verify your recovery backup.",12,MUTED));
   advancedPair(c,"Rerun Guided Setup","Check your device and retain original recovery backups.",this::guidedSetup,"Device & recovery","Review compatibility and device checks.",()->{tab="Device";draw();});
   advancedPair(c,"Factory Restore Fan","Restore original fan settings. "+DeviceState.backupDate(backupSummary),()->task(this::restoreFanBackup),"Factory Restore LEDs","Restore original LED settings. "+DeviceState.backupDate(backupSummary),()->task(this::restoreLighting));
@@ -195,23 +200,15 @@ public final class MainActivity extends Activity {
   dialogBuilder().setTitle("1 of 3 · Fan control safety").setMessage("Manipulating fan settings may cause your device to overheat and possibly cause damage. Only enable fan control if you understand this risk.\n\nFor custom profiles, Raven monitors the selected temperature sensor. At 80°C, sensor loss, a user switch or a missed app heartbeat, it requests stock Smart cooling. Standard custom speeds stay within the tested 50–70% range while running. The experimental 10–100% option in Advanced requires a separate warning. Once running, the fan stays on for at least 20 seconds to avoid rapid cycling. These safeguards cannot guarantee protection.\n\nSelecting a mode in the system fan tile ends Raven's custom control. Skipping leaves fan control disabled; LEDs are still available.")
    .setPositiveButton("Enable Fan Control",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",true).apply();setupFanNotifications();}).setNegativeButton("Skip",(d,w)->{prefs.edit().putBoolean("fanControlEnabled",false).apply();if(FanService.running)startService(new Intent(this,FanService.class).setAction("stock").putExtra("mode",4));runGuidedChecks();}).show();
  }
- private static final int SETUP_FAN_NOTIFICATIONS=6;
+ private static final int SETUP_FAN_NOTIFICATIONS=61;
  private static final int SETUP_NOTIFICATION_SETTINGS=7;
- private static final String FAN_NOTIFICATION_REASON="Custom fan profiles run in the background. Allow notifications so you can see the active session and tap Use Smart to return cooling to the system.";
  private void setupFanNotifications(){
-  createFanNotificationChannel();
-  if(FanService.notificationsAvailable(this)){runGuidedChecks();return;}
-  dialogBuilder().setTitle("Notifications for custom fan control")
-   .setMessage(FAN_NOTIFICATION_REASON+" Stock fan modes and LEDs are available without this permission.")
-   .setPositiveButton("Enable notifications",(d,w)->{
-    if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
-     requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},SETUP_FAN_NOTIFICATIONS);
-    }else openSetupNotificationSettings();
-   })
-   .setNegativeButton("Continue without",(d,w)->runGuidedChecks()).show();
+  ControlNotifications.ensure(this);
+  if(Build.VERSION.SDK_INT<33||checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED){runGuidedChecks();return;}
+  dialogBuilder().setTitle("Recovery alerts (optional)").setMessage("Allow notifications to receive recovery warnings. Fan, LED and CPU/GPU controls and their safeguards also work with notifications hidden. You can change each status category separately in Settings.").setPositiveButton("Allow alerts",(d,w)->requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},SETUP_FAN_NOTIFICATIONS)).setNegativeButton("Skip",(d,w)->runGuidedChecks()).show();
  }
  private void createFanNotificationChannel(){
-  getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("fan","Fan control",NotificationManager.IMPORTANCE_LOW));
+  ControlNotifications.ensure(this);
  }
  private void openSetupNotificationSettings(){
   startActivityForResult(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -219,12 +216,12 @@ public final class MainActivity extends Activity {
  }
  @Override protected void onActivityResult(int request,int result,Intent data){
   super.onActivityResult(request,result,data);
-  if(request==SETUP_NOTIFICATION_SETTINGS)runGuidedChecks();
+  if(request==SETUP_NOTIFICATION_SETTINGS)runGuidedChecks();else if(request==8&&tab.equals("Settings"))draw();
  }
  void runGuidedChecks(){
   if(busy)return;busy=true;AlertDialog progress=dialogBuilder().setTitle("2 of 3 · Checking your Odin").setMessage("Checking stock controls, reading sensors and retaining your original fan and LED recovery backups…").setCancelable(false).create();progress.show();
   io.execute(()->{String failure=null;try{readHardware();if(!checked)throw new Exception("No readable temperature sensors were found.");backupSummary=Root.run(this,"backup-create").substring(3);prefs.edit().putString("recoveryBackupSummary",backupSummary).putBoolean("setupCompleteV2",true).putString("recoveryVerifiedFirmware",Build.DISPLAY).apply();firmwareRecoveryPending=false;}catch(Exception e){checked=false;failure=e.getMessage();}final String error=failure;runOnUiThread(()->{busy=false;if(isFinishing()||isDestroyed())return;progress.dismiss();if(error!=null){report="Could not complete checks: "+error;dialogBuilder().setTitle("Checks need attention").setMessage(error).setPositiveButton("Try again",(d,w)->runGuidedChecks()).setNegativeButton("Close",null).show();return;}
-   dialogBuilder().setTitle("3 of 3 · Ready to use").setMessage(Build.MODEL+" checks passed.\n\n"+DeviceState.backupDate(backupSummary)+"\n\nOriginal backups are retained outside app storage, including after uninstall/reinstall. Setup never replaces them with an applied profile. Fan control is "+(prefs.getBoolean("fanControlEnabled",false)?(FanService.notificationsAvailable(this)?"enabled":"enabled for stock modes. Allow notifications to use custom profiles"):"disabled")+". Add Raven Fan and Raven LED from Android's quick-tile editor.")
+   dialogBuilder().setTitle("3 of 3 · Ready to use").setMessage(Build.MODEL+" checks passed.\n\n"+DeviceState.backupDate(backupSummary)+"\n\nOriginal backups are retained outside app storage, including after uninstall/reinstall. Setup never replaces them with an applied profile. Fan control is "+(prefs.getBoolean("fanControlEnabled",false)?"enabled":"disabled")+". Add Raven Fan and Raven LED from Android's quick-tile editor.")
     .setPositiveButton("Finish",(d,w)->{draw();openQuickProfile();}).show();
   });});
  }
@@ -329,20 +326,9 @@ public final class MainActivity extends Activity {
  void startFan(){
   try{validate();if(!prefs.getBoolean("fanControlEnabled",false))throw new IllegalArgumentException("Enable Fan Control in Rerun Guided Setup first.");if(!checked)throw new IllegalArgumentException("Rerun Guided Setup in Settings first.");if(zone.isEmpty())throw new IllegalArgumentException("The OEM temperature source is unavailable. Rerun Guided Setup.");}catch(Exception e){message(e.getMessage());return;}
   createFanNotificationChannel();
-  if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},5);return;}
-  if(!FanService.notificationsAvailable(this)){dialogBuilder().setMessage("Enable fan control notifications so the current profile and Use Smart action stay visible.").setPositiveButton("Notification settings",(d,w)->startActivity(new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,getPackageName()))).setNegativeButton("Cancel",null).show();return;}
   saveDraft();startForegroundService(new Intent(this,FanService.class).setAction("apply").putExtra("kind",kind).putExtra("points",points).putExtra("manual",manual).putExtra("profileName",fanChoice));
  }
- @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==SETUP_FAN_NOTIFICATIONS){
-   if(FanService.notificationsAvailable(this)){runGuidedChecks();return;}
-   dialogBuilder().setTitle("Custom fan notifications are off")
-    .setMessage(FAN_NOTIFICATION_REASON)
-    .setPositiveButton("Notification settings",(d,w)->openSetupNotificationSettings())
-    .setNegativeButton("Continue without",(d,w)->runGuidedChecks()).show();
-   return;
-  }
-  if(request==6)message(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED?"Notifications enabled. Apply the Performance profile when ready.":"Performance safety notifications are required for custom profiles.");
-  if(request==5)message(results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED?"Notifications enabled. Apply the fan profile when ready.":"Enable notifications to keep fan controls visible.");}
+ @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] results){super.onRequestPermissionsResult(request,permissions,results);if(request==SETUP_FAN_NOTIFICATIONS)runGuidedChecks();}
  String lightColor(int n){if(n>=4)return segmentData.optJSONObject(n-4).optString("color","FF8000");return n==0?left:n==1?right:n==2?sideLeft:sideRight;}
  void lightColor(int n,String color){if(n>=4){try{segmentData.getJSONObject(n-4).put("color",color);}catch(Exception e){throw new IllegalArgumentException(e);}return;}if(n==0)left=color;else if(n==1)right=color;else if(n==2)sideLeft=color;else sideRight=color;}
  int lightLevel(int n){return n<4?lightBrightness[n]:segmentData.optJSONObject(n-4).optInt("brightness",50);}

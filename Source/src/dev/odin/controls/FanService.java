@@ -21,21 +21,15 @@ public final class FanService extends Service {
  static boolean validTemperatureSource(String source){
   return source.matches("[0-9]{1,3}")||("Odin3".equals(Build.MODEL)&&"cpu-average".equals(source));
  }
- static boolean notificationsAvailable(Context c){
-  NotificationManager nm=c.getSystemService(NotificationManager.class);
-  NotificationChannel channel=nm.getNotificationChannel("fan");
-  return nm.areNotificationsEnabled()&&channel!=null&&channel.getImportance()!=NotificationManager.IMPORTANCE_NONE;
- }
  @Override public void onCreate(){
   super.onCreate();instance=this;
   NotificationManager nm=getSystemService(NotificationManager.class);
-  nm.createNotificationChannel(new NotificationChannel("fan","Fan control",NotificationManager.IMPORTANCE_LOW));
+  ControlNotifications.ensure(this);
  }
  private Notification notice(){
   PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
   PendingIntent stop=PendingIntent.getService(this,1,new Intent(this,FanService.class).setAction("stock").putExtra("mode",4),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-  return new Notification.Builder(this,"fan").setSmallIcon(getResources().getIdentifier("ic_notification","drawable",getPackageName())).setContentTitle("Raven System Control · fan session")
-   .setContentText(status).setContentIntent(open).setOngoing(true).addAction(new Notification.Action.Builder(null,"Use Smart",stop).build()).build();
+  return ControlNotifications.status(this,ControlNotifications.FAN,"Raven System Control · fan session",status).setContentIntent(open).setOngoing(true).addAction(new Notification.Action.Builder(null,"Use Smart",stop).build()).build();
  }
  @Override public int onStartCommand(Intent intent,int flags,int id){
   startForeground(1,notice());
@@ -44,7 +38,6 @@ public final class FanService extends Service {
   if("stock".equals(intent.getAction())){finishSession("stock-fan "+intent.getIntExtra("mode",4));return START_NOT_STICKY;}
   if(closing)return START_NOT_STICKY;
   if(!getSharedPreferences("profile",0).getBoolean("fanControlEnabled",false)){status="Enable fan control in Guided Setup first";stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
-  if(!notificationsAvailable(this)){status="Fan profile not applied: enable fan control notifications";stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY;}
   int manual=intent.getIntExtra("manual",55);
   String kind="manual".equals(intent.getStringExtra("kind"))?"manual":"curve",points=intent.getStringExtra("points");
   final String name=intent.getStringExtra("profileName")==null?"Custom fan":intent.getStringExtra("profileName");
@@ -63,19 +56,23 @@ public final class FanService extends Service {
     final String configuration=kind+" "+source+" 45 50 75 50 70 "+manual+" "+points+" "+(extended?"extended":"standard")+"\n";
     try(java.io.OutputStream out=new java.io.FileOutputStream(new java.io.File(getExternalFilesDir(null),"curve.cfg"))){out.write(configuration.getBytes(java.nio.charset.StandardCharsets.UTF_8));}
     boolean update=token!=null&&running;if(!update)token=UUID.randomUUID().toString().replace("-","");
+    ControlNotifications.clear(this,ControlNotifications.FAN_ALERT);
     status=Root.run(this,(update?"update2 ":"start2 ")+token).substring(3);running=true;sessionExtended=extended;
     if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
     getSharedPreferences("profile",0).edit().putString("activeFan",name).putString("lastFanProfile",name).apply();if(fromTile)getSharedPreferences("profile",0).edit().putString("tileFanSelection",name).apply();DeviceState.refreshTiles(this);
     getSharedPreferences("state",0).edit().putString("session",token).apply();appliedRevision.incrementAndGet();
-    if(ticker==null)ticker=worker.scheduleWithFixedDelay(()->{
+    if(ticker==null)ticker=worker.scheduleWithFixedDelay(this::heartbeat,1,3,TimeUnit.SECONDS);
+   }catch(Exception e){failure="Could not apply: "+e.getMessage();status=failure;finishSession();}
+  });
+  return START_NOT_STICKY;
+ }
+ private void heartbeat(){
+
      if(closing)return;
      if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
      try{String sample=Root.run(this,"lease "+token);if(sample.length()>3)status=sample.substring(3);getSystemService(NotificationManager.class).notify(1,notice());}
      catch(Exception e){failure="System cooling resumed or session ended: "+e.getMessage();status=failure;finishSession();}
-    },1,3,TimeUnit.SECONDS);
-   }catch(Exception e){failure="Could not apply: "+e.getMessage();status=failure;finishSession();}
-  });
-  return START_NOT_STICKY;
+
  }
  private void finishSession(){finishSession("stop");}
  private synchronized void finishSession(String request){
@@ -86,6 +83,8 @@ public final class FanService extends Service {
    catch(Exception e){status="Stop could not be confirmed. Root lease fallback: "+e.getMessage();}
    getSharedPreferences("state",0).edit().remove("session").apply();
    getSharedPreferences("profile",0).edit().remove("activeFan").apply();DeviceState.refreshTiles(this);
+   if(!failure.isEmpty()){String reason="";try{reason=Root.read("cat /data/local/odin-controls/last-result");}catch(Exception ignored){}if(!reason.contains("system-control-changed"))ControlNotifications.recovery(this,ControlNotifications.FAN_ALERT,"Raven · Fan recovery",status);}
+   else if(request.startsWith("stock-fan "))ControlNotifications.clear(this,ControlNotifications.FAN_ALERT);
    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();worker.shutdown();
   });
  }

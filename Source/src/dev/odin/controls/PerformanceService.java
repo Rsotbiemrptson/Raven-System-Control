@@ -19,15 +19,8 @@ public final class PerformanceService extends Service {
     private String token;
     private String status = "Starting safety monitor…";
 
-    static boolean notificationsAvailable(Context context) {
-        NotificationManager manager = context.getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Performance safety", NotificationManager.IMPORTANCE_LOW));
-        return manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL).getImportance() != NotificationManager.IMPORTANCE_NONE;
-    }
-
     static String apply(Context context, String limits) throws Exception {
-        if (!notificationsAvailable(context))
-            throw new IOException("Enable Performance safety notifications before applying a custom profile.");
+        ControlNotifications.ensure(context);
         String id = UUID.randomUUID().toString();
         CompletableFuture<String> result = new CompletableFuture<>();
         requests.put(id, result);
@@ -43,10 +36,7 @@ public final class PerformanceService extends Service {
 
     private Notification notice(boolean ongoing) {
         PendingIntent open = PendingIntent.getActivity(this, 3, new Intent(this, MainActivity.class).putExtra("performanceSafety", true), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        return new Notification.Builder(this, CHANNEL)
-            .setSmallIcon(getResources().getIdentifier("ic_notification", "drawable", getPackageName()))
-            .setContentTitle(ongoing ? "Raven · Performance safety" : "Raven · Safe recovery")
-            .setContentText(status).setStyle(new Notification.BigTextStyle().bigText(status))
+        return ControlNotifications.status(this, CHANNEL, "Raven · Performance safety", status).setStyle(new Notification.BigTextStyle().bigText(status))
             .setContentIntent(open).setOngoing(ongoing).build();
     }
 
@@ -72,6 +62,7 @@ public final class PerformanceService extends Service {
             try {
                 String answer = Root.run(this, "performance-guard " + nextToken + " " + limits);
                 token = nextToken;
+                ControlNotifications.clear(this,ControlNotifications.CPU_ALERT);
                 running = true;
                 status = "Guard active · recovery at 78°C or loss of monitoring";
                 getSystemService(NotificationManager.class).notify(NOTICE, notice(true));
@@ -109,7 +100,7 @@ public final class PerformanceService extends Service {
         status = message;
         if (ticker != null) ticker.cancel(false);
         stopForeground(STOP_FOREGROUND_REMOVE);
-        if (recoveryNotice) getSystemService(NotificationManager.class).notify(NOTICE, notice(false));
+        if (recoveryNotice) ControlNotifications.recovery(this,ControlNotifications.CPU_ALERT,"Raven · Safe recovery",status);
         stopSelf();
         worker.shutdown();
     }
@@ -120,7 +111,7 @@ public final class PerformanceService extends Service {
             running = false;
             if (ticker != null) ticker.cancel(false);
             worker.execute(() -> {
-                try { if (token != null) Root.run(this, "performance-recover " + token + " monitor-stopped"); }
+                try { if (token != null){Root.run(this, "performance-recover " + token + " monitor-stopped");if(Root.run(this,"performance-status").contains("\nguard=recovery"))ControlNotifications.recovery(this,ControlNotifications.CPU_ALERT,"Raven · Safe recovery","Performance monitoring stopped. Conservative limits were requested; check Performance before restoring stock.");} }
                 catch (Exception error) { android.util.Log.e("RavenPerformance", "Privileged lease fallback remains active", error); }
             });
             worker.shutdown();

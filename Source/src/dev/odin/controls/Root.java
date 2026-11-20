@@ -84,7 +84,7 @@ final class Root {
   if(SegmentSession.owned(c))return;
   SegmentSession.writing=true;
   try{restoreStockColors(c,helper(c));SegmentSession.forget(c);DeviceState.refreshTiles(c);}
-  catch(Exception e){android.util.Log.e("RavenSegments","Cannot restore stock color; original retained",e);}
+  catch(Exception e){android.util.Log.e("RavenSegments","Cannot restore stock color; original retained",e);ControlNotifications.recovery(c,ControlNotifications.LED_ALERT,"Raven · LED recovery","Stock lighting could not be restored. The original settings are retained; check LEDs.");}
   finally{SegmentSession.writing=false;}
  }
  static synchronized void resumeSegments(Context c)throws Exception {
