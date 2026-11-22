@@ -6,11 +6,11 @@
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.62** · Package: `dev.odin.controls` · Version code: `87` · License: **GPL-3.0-only**
+**Current release: 0.2.63-preview** · Package: `dev.odin.controls` · Version code: `88` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.62/Raven-System-Control-0.2.62.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.62)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.63-preview/Raven-System-Control-0.2.63-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.63-preview)
 
-**Stable release:** Fan control, LED profiles, Odin 3 CPU/GPU tuning and individual ring segments have completed device validation. Game Assistant integration requires compatible custom firmware.
+**Preview update:** 0.2.63-preview adds per-game OEM fan-mode subtitles with compatible Game Assistant firmware (190.3 or newer). The previous stable release is 0.2.62. Fan control, LED profiles, Odin 3 CPU/GPU tuning and individual ring segments have completed device validation; Game Assistant integration requires compatible custom firmware.
 
 **Hardware tested:** Odin 2 firmware 400 and Raven Odin 3 firmware 1.0.0.190.
 
@@ -25,6 +25,8 @@ Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and 
 0.2.61 adds the Raven CPU Quick Settings tile on Odin 3. Tap for the three stock modes and saved custom profiles; hold the icon to open Performance. It uses the existing guarded CPU/GPU controls and compatible firmware popup, with a standard-dialog fallback. Shade updates use cached state rather than waiting for a hardware probe. The native chooser, guarded custom underclock, Normal restoration and icon long-press were checked on Odin 3 firmware 190; original settings and recovery data were restored.
 
 0.2.62 fixes Raven CPU subtitles showing Normal after selecting Performance or High Performance. The tile reads the actual vendor mode asynchronously, retains saved profile names when their base mode matches, and stays usable while the mode refreshes. Completed profile changes also request an explicit tile refresh so the caption remains correct after its service unbinds. CPU profile validation, clock limits and safeguards are unchanged.
+
+0.2.63-preview reports the per-game OEM fan mode from compatible Game Assistant builds instead of displaying only the global fan setting. Quiet, Smart and Sport refresh the Raven Fan subtitle without tapping its tile; Follow global and leaving the game restore the global caption. Runtime status is cleared across reboot and when a global Raven fan profile takes over. This reporting update does not alter fan curves, hardware controls, safety limits or recovery helpers. The OEM popup fix is part of the separate Game Assistant 190.3 update, not bundled in this APK.
 
 ## Features
 
