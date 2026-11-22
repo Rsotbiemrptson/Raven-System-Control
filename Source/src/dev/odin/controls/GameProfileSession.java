@@ -36,3 +36,4 @@ final class GameProfileSession {
   }Bundle result=new Bundle();result.putBoolean("ok",true);result.putString("missing",missing.toString());result.putBoolean("cpu_managed",PerformanceOwnership.active(c));return result;
  }
 }
+

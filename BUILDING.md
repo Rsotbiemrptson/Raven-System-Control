@@ -11,7 +11,7 @@ runs the fan-policy tests, aligns the APK, signs it and verifies the result.
 - Android platform android-35/android.jar.
 - Android build tools providing aapt.exe, zipalign.exe, lib/d8.jar and
   lib/apksigner.jar. The build uses the Workbench toolchain layout below.
-- Android NDK r30 with the Windows x86_64 LLVM toolchain (clang.exe), used to build the ARM64 ring-segment helper.
+- Android NDK r30 with the Windows x86_64 LLVM toolchain (clang.exe), used to build the ARM64 ring-segment and Odin 2 lighting helpers.
 - Optional WSL Ubuntu with Python 3 for mocked shell integration tests.
 
 ## Toolchain layout
@@ -43,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/Release staging/0.2.55-preview/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.60/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -111,3 +111,7 @@ Before publishing changes to segment behavior, test both mixed disabled sections
 The shell segment regression also checks the dark OEM wake fallback, restoration of default/explicit stock colors, rejection of invalid colors, and preservation of a newer stock color selection. Saved disabled-segment profiles must be applied from both the app and actual Raven LED quick tile before their respective standby checks.
 
 Stock handoff fixtures verify explicit whole-ring frame replacement with default or selected colors, correct brightness scaling and preserved power masks. Cold process restart and actual stock-tile takeover must also pass visually through standby on the candidate build.
+
+The Odin 2 frame model is covered by ZoneFrameTest.java. The isolated native
+completion-event, timeout, brightness and takeover checks can be run in WSL with
+Python 3 using Source/tests/odin2_native_toggle_test.py and a C compiler.

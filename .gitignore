@@ -22,3 +22,5 @@ __pycache__/
 
 # Generated ARM64 helper; rebuilt from the included C source.
 /Source/assets/ring-segments
+
+/Source/assets/odin2-zones

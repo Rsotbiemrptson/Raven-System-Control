@@ -23,7 +23,7 @@ final class Root {
  static synchronized File helper(Context c)throws Exception {
   File dir=c.getExternalFilesDir(null);
   if(dir==null)throw new IOException("App storage unavailable");
-  for(String name:new String[]{"performance-guard.sh","performance.sh","hardware.sh","ring-segments"}){
+  for(String name:new String[]{"performance-guard.sh","performance.sh","hardware.sh","ring-segments","odin2-zones"}){
    File file=new File(dir,name),temp=new File(dir,name+".tmp");
    try(InputStream in=c.getAssets().open(name);OutputStream out=new FileOutputStream(temp)){
     byte[] b=new byte[8192];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
@@ -33,6 +33,10 @@ final class Root {
   return new File(dir,"hardware.sh");
  }
  static synchronized String run(Context c,String args)throws Exception {
+  if(ZoneSession.handles(c,args))return ZoneSession.run(c,args);
+  return runDirect(c,args);
+ }
+ static synchronized String runDirect(Context c,String args)throws Exception {
   String retained=SegmentSession.packed(c);
   if(!retained.isEmpty()&&args.startsWith("light-ring-enable ")){
    String[] fields=args.split(" ");String mask=DeviceState.get(c,"joystick_light_enabled");
@@ -100,3 +104,6 @@ final class Root {
   return new String(android.util.Base64.decode(s,android.util.Base64.DEFAULT),StandardCharsets.UTF_8);
  }
 }
+
+
+

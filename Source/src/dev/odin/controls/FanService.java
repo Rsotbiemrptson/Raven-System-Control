@@ -72,7 +72,7 @@ public final class FanService extends Service {
      if(sessionExtended&&!getSharedPreferences("profile",0).getBoolean("extendedFanRange",false)){finishSession("stock-fan 4");return;}
      try{String sample=Root.run(this,"lease "+token);if(sample.length()>3)status=sample.substring(3);getSystemService(NotificationManager.class).notify(1,notice());}
      catch(Exception e){failure="System cooling resumed or session ended: "+e.getMessage();status=failure;finishSession();}
-
+    
  }
  private void finishSession(){finishSession("stop");}
  private synchronized void finishSession(String request){

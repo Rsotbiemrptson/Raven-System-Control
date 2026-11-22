@@ -38,3 +38,4 @@ final class ProfileActions {
   String[] scaled=new String[2];for(int n=0;n<2;n++){int color=Integer.parseInt(colors[n],16);scaled[n]=String.format(Locale.ROOT,"%02X%02X%02X",((color>>16)&255)*levels[n]/100,((color>>8)&255)*levels[n]/100,(color&255)*levels[n]/100);}return "light "+scaled[0]+" "+scaled[1]+" 100"+(mask.isEmpty()?"":" keep "+mask.charAt(0)+","+mask.charAt(1));
  }
 }
+

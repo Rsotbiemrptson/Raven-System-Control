@@ -19,3 +19,5 @@ final class RingSegments {
   for(int n=0;n<8;n++){JSONObject part=a.getJSONObject(n);out.append(SegmentColors.rgb(part.getString("color"),part.getInt("brightness"),part.getBoolean("enabled")));}return out.toString();
  }
 }
+
+

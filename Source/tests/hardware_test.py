@@ -1,6 +1,6 @@
 """Host-only integration tests. All device paths/commands use temporary fixtures."""
 from pathlib import Path
-import os, subprocess, tempfile, time, shutil
+import os, subprocess, tempfile, time, shutil, signal
 
 source=Path(__file__).resolve().parents[1]/'assets/hardware.sh'
 with tempfile.TemporaryDirectory(prefix='odin-controls-test-') as folder:
@@ -40,6 +40,10 @@ with tempfile.TemporaryDirectory(prefix='odin-controls-test-') as folder:
 case "$3" in
 get) if [ -f "$D/$5" ]; then cat "$D/$5";else echo null;fi;;
 put) [ ! -f "$D/fail-$5-$6" ] || exit 1
+ if [ "$5:$6" = smart_fan_mode_switch:1 ] && [ -f "$D/pause-cleanup" ]; then
+  touch "$D/cleanup-entered"
+  while [ -f "$D/pause-cleanup" ]; do sleep 0.01; done
+ fi
  printf '%s' "$6" > "$D/$5"
  echo "$5=$6" >> "$D/put-log"
  if [ "$(getprop ro.product.model)" = Odin3 ]; then
@@ -489,6 +493,24 @@ esac''')
         run('stock-fan',99,ok=False)
         run('backup-create');catalog=(control/'stock-fan-v1/modes').read_text();run('backup-create');assert (control/'stock-fan-v1/modes').read_text()==catalog
         print('PASS multipoint start, live update, invalid curve rejection, system takeover without restoration, stock Smart and immutable stock catalog')
+        # Stop can race with the loop observing its stop file. A second TERM
+        # during restoration must not kill cleanup and strand the journal.
+        run('start2',token);waitfor(lambda:(runpath/'status').exists())
+        pid=int((runpath/'pid').read_text())
+        (state/'pause-cleanup').touch()
+        stopping=subprocess.Popen(['sh',str(helper),'stock-fan','0'],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+        try:
+            waitfor(lambda:(state/'cleanup-entered').exists())
+            os.kill(pid,signal.SIGTERM)
+            (state/'pause-cleanup').unlink()
+            output,error=stopping.communicate(timeout=8)
+            assert stopping.returncode==0 and output.startswith('OK'),(output,error)
+            assert not runpath.exists() and value('fan_mode')=='0' and value('smart_fan_mode_switch')=='0'
+        finally:
+            (state/'pause-cleanup').unlink(missing_ok=True)
+            if stopping.poll() is None:
+                stopping.terminate();stopping.communicate(timeout=8)
+        print('PASS a concurrent stop signal cannot interrupt stock restoration or strand the fan journal')
         # Only the explicit extended range may request 10..100 while running. Temperature,
         # duty-period, fallback, minimum-run and OEM takeover guards remain.
         for cfg in [
@@ -536,6 +558,24 @@ esac''')
         (thermal/'temp').write_text('invalid');waitfor(lambda:not runpath.exists());assert value('fan_mode')=='4'
         assert (control/'last-result').read_text()=='sensor-unavailable';(thermal/'temp').write_text('62000')
         print('PASS extended10/100% requests, curve-off/minimum-run behavior, rejection of manual0..9 and curve1..9, exact duty cap, standard opt-out rejection, temperature/order guards, minimum run time,80C/sensor/lease fallback, OEM takeover and changed-period fallback')
+        executable('getprop','case "$1" in ro.product.model) echo Odin2;; ro.build.version.sdk) echo 33;; *) echo Odin2_Custom_V1.0.0.400;; esac')
+        (state/'led_light_picker_color').write_text('-65536');(state/'led_light_brightness_percent').write_text('0.75')
+        flag_keys=['left_joystick_light_enabled','right_joystick_light_enabled','left_handle_light_enabled','right_handle_light_enabled']
+        for key,enabled in zip(flag_keys,'1010'):(state/key).write_text(enabled)
+        run('light-zones-prepare')
+        assert value('led_light_picker_color')=='-16777216' and value('led_light_brightness_percent')=='0.75'
+        assert ''.join(value(key) for key in flag_keys)=='1010'
+        request=['light-zones','FF0000','0000FF','00FF00','FF8000',100,50,25,75,'keep','1010']
+        run(*request);run('light-zones-sleep')
+        assert (lights/'l/enable').read_text().strip()=='0' and (lights/'r/enable').read_text().strip()=='0'
+        assert ''.join(value(key) for key in flag_keys)=='1010','Sleep changed durable OEM enable flags'
+        run(*request)
+        assert value('led_light_picker_color')=='-16777216' and value('led_light_brightness_percent')=='0.75'
+        assert ''.join(value(key) for key in flag_keys)=='1010'
+        run('light-off');run('light-zones-sleep');assert ''.join(value(key) for key in flag_keys)=='0000'
+        print('PASS Odin2 dark wake fallback, independent resume, hardware-only sleep blanking and durable all-off flags')
+        executable('getprop','case "$1" in ro.product.model) echo Odin3;; *) echo 35;; esac')
+        run('light-zones-prepare',ok=False);run('light-zones-sleep',ok=False)
         executable('getprop','case "$1" in ro.product.model) echo Odin2;; ro.build.version.sdk) echo 33;; *) echo UnknownFirmware;; esac')
         run('probe',ok=False)
         executable('getprop','case "$1" in ro.product.model) echo Odin3;; *) echo 33;; esac')

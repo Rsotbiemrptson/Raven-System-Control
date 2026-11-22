@@ -4,7 +4,7 @@ $ErrorActionPreference='Stop'
 $source=$PSScriptRoot
 $project=Split-Path $source -Parent
 $build=Join-Path $project ('Outputs\build-'+[Guid]::NewGuid().ToString('N'))
-$out=Join-Path $project 'Outputs\Release staging\0.2.56-preview'
+$out=Join-Path $project 'Outputs\Release staging\0.2.60'
 $tools=Join-Path $Workspace 'Toolchain\Android-Build-Tools'
 $javaBin=Join-Path $Workspace 'Toolchain\Java\bin'
 $platform=Join-Path $Workspace 'Toolchain\Android-SDK\platforms\android-35\android.jar'
@@ -14,6 +14,7 @@ $buildStamp=[TimeZoneInfo]::ConvertTimeFromUtc([DateTime]::UtcNow,[TimeZoneInfo]
 [IO.File]::WriteAllText("$source\src\dev\odin\controls\BuildInfo.java", "package dev.odin.controls; final class BuildInfo { static final String BUILD_DATE = `"$buildStamp`"; }", [Text.UTF8Encoding]::new($false))
 $clang=Join-Path $Workspace 'Toolchain\android-ndk-r30\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe'
 Invoke-Tool $clang @('--target=aarch64-linux-android30','-O2','-Wall','-Wextra','-Werror',"$source\native\ring-segments.c",'-o',"$source\assets\ring-segments")
+Invoke-Tool $clang @('--target=aarch64-linux-android30','-O2','-Wall','-Wextra','-Werror',"$source\native\odin2-zones.c",'-o',"$source\assets\odin2-zones")
 $sources=@(Get-ChildItem -LiteralPath "$source\src" -Filter '*.java' -Recurse | ForEach-Object FullName)
 Invoke-Tool "$javaBin\javac.exe" (@('-encoding','UTF-8','-source','8','-target','8','-cp',$platform,'-d',"$build\classes")+$sources)
 Invoke-Tool "$javaBin\javac.exe" @('-encoding','UTF-8','-d',"$build\test","$source\src\dev\odin\controls\FanCurve.java","$source\tests\FanCurveTest.java")
@@ -26,6 +27,8 @@ Invoke-Tool "$javaBin\javac.exe" @('-encoding','UTF-8','-d',"$build\test","$sour
 Invoke-Tool "$javaBin\java.exe" @('-cp',"$build\test",'dev.odin.controls.PerformanceProfileTest')
 Invoke-Tool "$javaBin\javac.exe" @('-encoding','UTF-8','-d',"$build\test","$source\src\dev\odin\controls\SegmentColors.java","$source\tests\SegmentColorsTest.java")
 Invoke-Tool "$javaBin\java.exe" @('-cp',"$build\test",'dev.odin.controls.SegmentColorsTest')
+Invoke-Tool "$javaBin\javac.exe" @('-encoding','UTF-8','-d',"$build\test","$source\src\dev\odin\controls\ZoneFrame.java","$source\tests\ZoneFrameTest.java")
+Invoke-Tool "$javaBin\java.exe" @('-cp',"$build\test",'dev.odin.controls.ZoneFrameTest')
 Invoke-Tool "$javaBin\jar.exe" @('cf',"$build\classes.jar",'-C',"$build\classes",'.')
 Invoke-Tool "$javaBin\java.exe" @('-cp',"$tools\lib\d8.jar",'com.android.tools.r8.D8','--min-api','30','--lib',$platform,'--output',"$build\dex","$build\classes.jar")
 # Package shell assets with Unix line endings even from a Windows checkout.
@@ -46,10 +49,12 @@ $key=Join-Path $keyDir 'odin-controls-local.jks'
 if(!(Test-Path -LiteralPath $key)){
  Invoke-Tool "$javaBin\keytool.exe" @('-genkeypair','-keystore',$key,'-alias','odin-controls','-storepass','android','-keypass','android','-keyalg','RSA','-keysize','3072','-validity','3650','-dname','CN=Odin Controls Local Preview','-noprompt')
 }
-$apk=Join-Path $out 'Raven-System-Control-0.2.56-preview.apk'
+$apk=Join-Path $out 'Raven-System-Control-0.2.60.apk'
 Invoke-Tool "$javaBin\java.exe" @('-jar',"$tools\lib\apksigner.jar",'sign','--ks',$key,'--ks-key-alias','odin-controls','--ks-pass','pass:android','--key-pass','pass:android','--out',$apk,"$build\aligned.apk")
 Invoke-Tool "$javaBin\java.exe" @('-jar',"$tools\lib\apksigner.jar",'verify','--verbose',$apk)
 Invoke-Tool "$tools\zipalign.exe" @('-c','4',$apk)
 $hash=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
-"$hash  Raven-System-Control-0.2.56-preview.apk" | Set-Content -LiteralPath "$out\SHA256SUMS.txt" -Encoding ascii
+"$hash  Raven-System-Control-0.2.60.apk" | Set-Content -LiteralPath "$out\SHA256SUMS.txt" -Encoding ascii
 Write-Output "Built APK: $apk"
+
+

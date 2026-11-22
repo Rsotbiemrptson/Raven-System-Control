@@ -17,3 +17,4 @@ public final class PortableProfiles {
  public static JSONObject merge(JSONObject before,JSONObject incoming,boolean replace)throws Exception{validate(incoming);JSONObject result=replace?empty():new JSONObject(before.toString());validate(result);for(String kind:KINDS){JSONObject src=incoming.getJSONObject(kind),dst=result.getJSONObject(kind);for(Iterator<String> i=src.keys();i.hasNext();){String n=i.next();dst.put(n,new JSONObject(src.getJSONObject(n).toString()));}}validate(result);return result;}
  public static int count(JSONObject o)throws Exception{int n=0;for(String k:KINDS)n+=o.getJSONObject(k).length();return n;}
 }
+

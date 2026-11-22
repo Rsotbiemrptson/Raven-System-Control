@@ -1,24 +1,26 @@
 # Raven System Control
 
-<img src="docs/images/icon.png?v=0.2.56-preview" alt="Raven System Control" width="112">
+<img src="docs/images/icon.png?v=0.2.60" alt="Raven System Control" width="112">
 
 **Your system. Your way.**
 
 Fan curves, independent lighting profiles and quick controls for AYN Odin 2 and Odin 3 while preserving the stock OS.
 
-**Current release: 0.2.56-preview** · Package: `dev.odin.controls` · Version code: `81` · License: **GPL-3.0-only**
+**Current release: 0.2.60** · Package: `dev.odin.controls` · Version code: `85` · License: **GPL-3.0-only**
 
-[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.56-preview/Raven-System-Control-0.2.56-preview.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.56-preview)
+[Download the APK](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/download/v0.2.60/Raven-System-Control-0.2.60.apk) · [Release notes and checksums](https://github.com/Rsotbiemrptson/Raven-System-Control/releases/tag/v0.2.60)
 
-**Preview release:** CPU/GPU tuning, Game Assistant integration and Odin 3 individual ring segments remain in preview.
+**Stable release:** Fan control, LED profiles, Odin 3 CPU/GPU tuning and individual ring segments have completed device validation. Game Assistant integration requires compatible custom firmware.
 
-**Hardware tested:** Odin 2 firmware 400 and Odin 3 firmware 1.0.0.187; the current CPU/GPU, fan and recovery changes were tested on Raven Odin 3 firmware 1.0.0.189 r2.
+**Hardware tested:** Odin 2 firmware 400 and Raven Odin 3 firmware 1.0.0.190.
 
 0.2.54-preview prevents the brief stock teal flash when a saved Odin 3 segment profile returns after standby. Mixed-disabled profiles were checked from both the app and Raven LED tile, together with all-segments-off wake behavior. Original lighting, saved profiles and recovery data were restored and verified.
 
 0.2.55-preview preserves active segment profiles through a cold Raven process restart and restores complete stock ring colors when the OEM LED tile takes over. Cold restart, saved-profile standby, stock takeover and stock standby, and all-segments-off wake checks passed on Odin 3 before publication; original lighting and recovery data were restored.
 
 0.2.56-preview adds separate notification controls for fan, LED and CPU/GPU status, with recovery alerts kept separate. Custom profiles continue working when routine status notifications are hidden; foreground safety monitoring and independent recovery safeguards remain enabled. Hidden-status fan/CPU recovery and saved-segment standby checks passed on Raven Odin 3 firmware 1.0.0.190; original settings, lighting and recovery backups were preserved.
+
+0.2.60 is the stable release following final Odin 2 and Odin 3 validation. It includes faster Odin 2 LED group switching while retaining independent colors/brightness, saved-profile wake restoration and stock-control takeover, plus the fan cleanup and Odin 3 segment-wake fixes tested during the preview. Original profiles, settings and recovery backups are preserved. After a full Odin 2 reboot, lighting remains off until Raven or its LED tile starts.
 
 ## Features
 

@@ -182,7 +182,10 @@ restore_backup_lights() {
 }
 cleanup() {
  result=$?
- trap - EXIT INT TERM
+ # A concurrent Stop may signal us after cleanup has already started. Keep
+ # restoration uninterrupted instead of resetting TERM to its default action.
+ trap - EXIT
+ trap '' INT TERM
  recovery=0
  if [ -f "$R/armed" ] && [ "$reason" != system-control-changed ]; then
   if [ "$reason" = stopped ]; then
@@ -554,7 +557,7 @@ light)
  [ "$#" -ge 4 ] && [ "$#" -le 6 ] || fail 'Invalid lighting request'
  left=$2;right=$3;brightness=$4;side=${5:-keep};mask=${6:-1,1}
  case "$mask" in 0,0|0,1|1,0|1,1) ;; *) fail 'Invalid ring enables';; esac
- [ "$#" -ne 6 ] || [ "$lighting" = rings ] || fail 'Ring mask requires Odin 3'
+ [ "$#" -ne 6 ] || [ "$lighting" = rings ] || fail 'Ring mask requires Odin 3' 
  case "$side" in keep|on|off) ;; *) fail 'Invalid side-light request';; esac
  [ "$lighting" = shared ] || [ "$side" = keep ] || fail 'Side-light control is supported on Odin 2 firmware 400 only'
  [ "${#left}" = 6 ] && [ "${#right}" = 6 ] || fail 'Use six-digit RGB colors'
@@ -577,6 +580,35 @@ light)
   put joystick_led_light_picker_color "#$left,#$right" && put led_light_brightness_percent "$value" && put joystick_light_enabled "$mask" || fail 'Lighting settings write failed; restore the snapshot'
   echo 'OK Left and right ring colors applied through stock settings'
  fi
+ ;;
+light-zones-fast)
+ [ "$lighting" = shared ] && [ "$#" -eq 12 ] && [ "${10}" = keep ] || fail 'Invalid fast Odin2 frame'
+ helper=${0%/*}/odin2-zones
+ [ -f "$helper" ] && [ ! -L "$helper" ] || fail 'Odin2 frame helper missing'
+ mkdir -p "$D" && chmod 700 "$D" || fail 'Cannot protect frame helper'
+ [ ! -L "$D/odin2-zones" ] && [ ! -L "$D/odin2-zones.new" ] || fail 'Unsafe frame helper path'
+ cp "$helper" "$D/odin2-zones.new" && chmod 700 "$D/odin2-zones.new" && mv "$D/odin2-zones.new" "$D/odin2-zones" || fail 'Cannot stage frame helper'
+ side=on;save_lighting
+ result=$("$D/odin2-zones" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${11}" "${12}") || fail "$result"
+ echo groups > "$D/lights/direct"
+ active=1;[ "${11}" != 0000 ] || active=0
+ echo "$active" > "$D/lights/active-l";echo "$active" > "$D/lights/active-r"
+ echo "$result"
+ ;;
+light-zones-prepare|light-zones-sleep)
+ [ "$lighting" = shared ] && [ "$#" -eq 1 ] || fail 'Odin 2 LED lifecycle operation required'
+ if [ "$OP" = light-zones-prepare ]; then
+  # Snapshot both side flags even when the frame uses an explicit power mask.
+  side=on
+  save_lighting
+  if [ "$(get led_light_picker_color)" != -16777216 ]; then
+   put led_light_picker_color -16777216 || fail 'Cannot protect LED wake color'
+   sleep 0.25
+  fi
+ else
+  echo 0 > /sys/class/sn3112l/led/enable && echo 0 > /sys/class/sn3112r/led/enable || fail 'Cannot blank LEDs for standby'
+ fi
+ echo 'OK LED lifecycle ready'
  ;;
 light-zones|light-groups)
  [ "$OP" != light-groups ] || [ "$#" -eq 11 ] || [ "$#" -eq 12 ] || fail 'Invalid fast-group request'
@@ -744,3 +776,6 @@ restore-light)
  ;;
 *) fail 'Unknown operation';;
 esac
+
+
+

@@ -17,3 +17,5 @@ final class SegmentSession {
  }
  static void forget(Context c){android.content.SharedPreferences p=c.getSharedPreferences("profile",0);android.content.SharedPreferences.Editor edit=p.edit().remove("segmentPacked").remove("segmentSignature").remove("segmentStockColors");if(p.contains("segmentPacked"))edit.putString("activeLED","System LEDs").putString("ledObserved",DeviceState.ledSignature(c));edit.commit();c.stopService(new Intent(c,SegmentService.class));}
 }
+
+
