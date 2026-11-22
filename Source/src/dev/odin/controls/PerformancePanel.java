@@ -393,6 +393,7 @@ final class PerformancePanel {
                     if (save)
                         editor.putString("performance:" + name, json);
                     editor.apply();
+                    CpuTile.refresh(host);
                     selection = name;
                     draft = selected;
                     suggestedName = "";

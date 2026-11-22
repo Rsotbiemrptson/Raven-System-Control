@@ -43,7 +43,7 @@ From this repository:
 ```
 
 The script uses a separate `Outputs/build-<id>` staging directory and writes the
-signed APK to `Outputs/Release staging/0.2.61/`, along with SHA256SUMS.txt. Build output
+signed APK to `Outputs/Release staging/0.2.62/`, along with SHA256SUMS.txt. Build output
 is ignored by Git. It does not install the APK, access a device or publish a release.
 
 ## Development signing
@@ -115,3 +115,6 @@ Stock handoff fixtures verify explicit whole-ring frame replacement with default
 The Odin 2 frame model is covered by ZoneFrameTest.java. The isolated native
 completion-event, timeout, brightness and takeover checks can be run in WSL with
 Python 3 using Source/tests/odin2_native_toggle_test.py and a C compiler.
+
+CpuTileStatusTest.java covers actual stock-mode labels, saved profiles in each base
+mode, handoff to another vendor mode, and unknown-mode handling.
