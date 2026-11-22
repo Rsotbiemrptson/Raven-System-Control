@@ -20,6 +20,6 @@ final class DeviceState {
    &&get(c,"right_handle_light_enabled").equals("0"))return "Off";
   return led(c);
  }
- static void refreshTiles(Context c){for(Class<?> service:new Class<?>[]{FanTile.class,LedTile.class})TileService.requestListeningState(c,new ComponentName(c,service));}
+ static void refreshTiles(Context c){for(Class<?> service:new Class<?>[]{FanTile.class,LedTile.class,CpuTile.class})TileService.requestListeningState(c,new ComponentName(c,service));}
  static String backupDate(String text){java.util.regex.Matcher m=java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z").matcher(text);if(!m.find())return text;try{java.text.SimpleDateFormat input=new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'",java.util.Locale.ROOT);input.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));java.util.Date date=input.parse(m.group());String local=java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.MEDIUM,java.text.DateFormat.SHORT).format(date);return text.substring(0,m.start())+local+text.substring(m.end());}catch(Exception e){return text;}}
 }
