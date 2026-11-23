@@ -11,6 +11,7 @@ public final class FanService extends Service {
  static final java.util.concurrent.atomic.AtomicLong appliedRevision=new java.util.concurrent.atomic.AtomicLong();
  public static volatile String status="No fan session running";
  public static volatile boolean running=false;
+ static volatile String lastExitReason="";
  static volatile FanService instance;static boolean closingNow(){return instance!=null&&instance.closing;}
  private final ScheduledExecutorService worker=Executors.newSingleThreadScheduledExecutor();
  private volatile boolean closing=false;
@@ -48,6 +49,7 @@ public final class FanService extends Service {
   worker.execute(()->{
    try{
     if(closing)return;
+    lastExitReason="";
     Root.run(this,"probe");
     String source=Root.run(this,"oem-sensor").substring(3).trim();if(!validTemperatureSource(source))throw new IllegalArgumentException("OEM temperature sensor unavailable");
     // Recheck consent on the worker too: a queued tile action must not retain
@@ -79,12 +81,19 @@ public final class FanService extends Service {
   if(closing)return;closing=true;running=false;
   if(ticker!=null)ticker.cancel(false);
   worker.execute(()->{
-   try{String stopped=Root.run(this,request).substring(3);status=failure.isEmpty()?stopped:failure+" · "+stopped;appliedRevision.incrementAndGet();if(request.equals("stock-fan 1")||request.equals("stock-fan 4")||request.equals("stock-fan 5")){String mode=request.substring(request.length()-1);getSharedPreferences("profile",0).edit().putString("lastFanProfile",DeviceState.stockName(mode)+" · stock").apply();}}
-   catch(Exception e){status="Stop could not be confirmed. Root lease fallback: "+e.getMessage();}
+   boolean confirmed=false;String reason="";
+   try{Root.run(this,request);confirmed=true;appliedRevision.incrementAndGet();if(request.equals("stock-fan 1")||request.equals("stock-fan 4")||request.equals("stock-fan 5")){String mode=request.substring(request.length()-1);getSharedPreferences("profile",0).edit().putString("lastFanProfile",DeviceState.stockName(mode)+" · stock").apply();}}
+   catch(Exception e){android.util.Log.e("RavenFan","Fan recovery was not confirmed",e);}
+   try{reason=Root.read("cat /data/local/odin-controls/last-result").trim();}catch(Exception ignored){}
+   lastExitReason=token==null?"":reason;
+   boolean recoveryFailed=FanRecoveryOutcome.needsAlert(confirmed,reason);
+   if(recoveryFailed)status=FanRecoveryOutcome.failureStatus();
+   else status=failure.startsWith("Could not apply:")?failure:FanRecoveryOutcome.successStatus(request,reason);
+   if(!failure.isEmpty())android.util.Log.i("RavenFan","Session ended: "+failure+"; recovery="+reason+"; confirmed="+confirmed);
    getSharedPreferences("state",0).edit().remove("session").apply();
    getSharedPreferences("profile",0).edit().remove("activeFan").apply();DeviceState.refreshTiles(this);
-   if(!failure.isEmpty()){String reason="";try{reason=Root.read("cat /data/local/odin-controls/last-result");}catch(Exception ignored){}if(!reason.contains("system-control-changed"))ControlNotifications.recovery(this,ControlNotifications.FAN_ALERT,"Raven · Fan recovery",status);}
-   else if(request.startsWith("stock-fan "))ControlNotifications.clear(this,ControlNotifications.FAN_ALERT);
+   if(recoveryFailed)ControlNotifications.recovery(this,ControlNotifications.FAN_ALERT,"Raven · Fan recovery",status);
+   else ControlNotifications.clear(this,ControlNotifications.FAN_ALERT);
    stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();worker.shutdown();
   });
  }
