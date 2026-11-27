@@ -5,7 +5,7 @@ Configure routine status notifications separately from recovery alerts.
 - Guided Setup requests notification permission optionally for recovery alerts, rather than requiring visible fan notifications.
 - LED apply and segment-restoration status share the LED status category. Control/recovery failures use separate recovery alerts.
 
-Verified on the exact signed APK on Odin 3, Android 15, Raven firmware 1.0.0.190:
+Verified on the exact signed APK on Odin 3, Android 15, modified AYN firmware 1.0.0.187 (Raven build label 190):
 - Hidden-status manual and curve fan control; heartbeat-loss Smart fallback and a separate recovery alert.
 - Hidden-status conservative CPU/GPU profile, retained caps and watchdog recovery to conservative limits; separate recovery alert.
 - Saved mixed-disabled segment profile applied from the app with LED status hidden; standby/wake returned the correct six sections with both disabled positions dark and no flash.
